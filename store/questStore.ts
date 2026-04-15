@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { QUESTS } from '@/data/quests'
 
 export type CharacterType = '용사' | '마법사' | '엘프' | '용' | '요정' | '오크'
 
@@ -46,7 +47,9 @@ export const useQuestStore = create<QuestState>()(
         const newCompleted = [...completedQuests, questId]
         const newXp = get().xp + 20
         const newLevel = calcLevel(newXp)
-        const newCastleHp = Math.max(0, 100 - newCompleted.length * 2.5)
+        const totalQuests = QUESTS.length
+        const damagePerQuest = 100 / totalQuests
+        const newCastleHp = Math.max(0, 100 - newCompleted.length * damagePerQuest)
 
         set({
           completedQuests: newCompleted,

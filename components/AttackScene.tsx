@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useQuestStore } from '@/store/questStore'
+import { QUESTS } from '@/data/quests'
 
 const CHARACTER_EMOJI: Record<string, string> = {
   '용사': '🗡️',
@@ -21,6 +22,7 @@ interface AttackSceneProps {
 export default function AttackScene({ isChapterComplete = false, onComplete }: AttackSceneProps) {
   const { character, castleHp } = useQuestStore()
   const emoji = character ? CHARACTER_EMOJI[character] : '⚔️'
+  const damagePerQuest = 100 / QUESTS.length
 
   useEffect(() => {
     const timer = setTimeout(onComplete, isChapterComplete ? 3500 : 2500)
@@ -96,12 +98,20 @@ export default function AttackScene({ isChapterComplete = false, onComplete }: A
               <motion.div
                 className="h-3 rounded-full"
                 style={{ background: 'linear-gradient(to right, #ff6b35, #ff4444)' }}
-                initial={{ width: `${Math.min(100, castleHp + 2.5)}%` }}
+                initial={{ width: `${Math.min(100, castleHp + damagePerQuest)}%` }}
                 animate={{ width: `${castleHp}%` }}
                 transition={{ duration: 0.6, delay: 0.9 }}
               />
             </div>
-            <p className="text-xs text-[#ff6b35] mt-1 font-bold">{Math.round(castleHp)}/100</p>
+            <motion.p
+              className="text-xs text-[#ff4444] mt-1 font-bold"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: [0, 1, 1, 0], y: [-6, -16, -20, -26] }}
+              transition={{ duration: 1.2, delay: 0.9 }}
+            >
+              -{Math.ceil(damagePerQuest)} HP
+            </motion.p>
+            <p className="text-xs text-[#ff6b35] font-bold">{Math.round(castleHp)}/100</p>
           </motion.div>
         </div>
 
