@@ -133,7 +133,8 @@ type H3Section = { heading: string; tokens: ContentToken[] }
 type Block =
   | { kind: 'h2'; text: string }
   | { kind: 'content'; tokens: ContentToken[] }
-  | { kind: 'cards'; sections: H3Section[] }   // 항상 최대 2개씩
+  | { kind: 'cards'; sections: H3Section[] }        // 정확히 2개일 때만 2컬럼
+  | { kind: 'card-stack'; sections: H3Section[] }   // 3개 이상: steps 형식
 
 function groupBlocks(tokens: Token[]): Block[] {
   const blocks: Block[] = []
@@ -147,21 +148,28 @@ function groupBlocks(tokens: Token[]): Block[] {
     }
 
     if (tok.type === 'h3') {
-      // h3 섹션들을 최대 2개씩 페어로 묶음
+      // 연속된 h3 섹션 전체를 먼저 수집
+      const all: H3Section[] = []
       while (i < tokens.length && tokens[i].type === 'h3') {
-        const pair: H3Section[] = []
-        // 최대 2개만 한 쌍으로
-        for (let p = 0; p < 2 && i < tokens.length && tokens[i].type === 'h3'; p++) {
-          const heading = (tokens[i] as { type: 'h3'; text: string }).text
+        const heading = (tokens[i] as { type: 'h3'; text: string }).text
+        i++
+        const content: ContentToken[] = []
+        while (i < tokens.length && tokens[i].type !== 'h2' && tokens[i].type !== 'h3') {
+          content.push(tokens[i] as ContentToken)
           i++
-          const content: ContentToken[] = []
-          while (i < tokens.length && tokens[i].type !== 'h2' && tokens[i].type !== 'h3') {
-            content.push(tokens[i] as ContentToken)
-            i++
-          }
-          pair.push({ heading, tokens: content })
         }
-        blocks.push({ kind: 'cards', sections: pair })
+        all.push({ heading, tokens: content })
+      }
+
+      if (all.length === 2) {
+        // 정확히 2개: 2컬럼 비교 카드
+        blocks.push({ kind: 'cards', sections: all })
+      } else if (all.length === 1) {
+        // 1개: 솔로 카드 (numbered 스타일)
+        blocks.push({ kind: 'cards', sections: all })
+      } else {
+        // 3개 이상: steps 형식
+        blocks.push({ kind: 'card-stack', sections: all })
       }
       continue
     }
@@ -224,25 +232,48 @@ const CALLOUT_ICON: Record<CalloutType, string> = {
   tip: '💡', warn: '⚠️', danger: '🚨', ok: '✅', info: '🔮',
 }
 
-function RenderTokens({ tokens, keyBase = 0 }: { tokens: ContentToken[]; keyBase?: number }) {
+function RenderTokens({ tokens, keyBase = 0, numbered = false }: {
+  tokens: ContentToken[]
+  keyBase?: number
+  numbered?: boolean
+}) {
+  let pIdx = 0
   return (
     <>
       {tokens.map((tok, i) => {
         const k = keyBase * 1000 + i
-        if (tok.type === 'p') return (
-          <p key={k} style={{ fontSize: 15, lineHeight: 2.0, color: 'var(--text2)', marginBottom: 12 }}>
-            {parseInline(tok.text, k * 100)}
-          </p>
-        )
+        if (tok.type === 'p') {
+          const idx = pIdx++
+          if (numbered) return (
+            <div key={k} style={{ display: 'flex', gap: 14, marginBottom: 20, alignItems: 'flex-start' }}>
+              <span style={{
+                width: 30, height: 30, borderRadius: '50%',
+                background: 'var(--gold2)', border: '1px solid rgba(245,200,66,.3)',
+                color: 'var(--gold)', fontSize: 13, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 3,
+              }}>
+                {idx + 1}
+              </span>
+              <p style={{ fontSize: 17, lineHeight: 2.2, color: 'var(--text2)', margin: 0, flex: 1 }}>
+                {parseInline(tok.text, k * 100)}
+              </p>
+            </div>
+          )
+          return (
+            <p key={k} style={{ fontSize: 17, lineHeight: 2.2, color: 'var(--text2)', marginBottom: 16 }}>
+              {parseInline(tok.text, k * 100)}
+            </p>
+          )
+        }
         if (tok.type === 'list') return (
-          <ul key={k} style={{ margin: '8px 0 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <ul key={k} style={{ margin: '8px 0 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {tok.items.map((item, idx) => (
-              <li key={idx} style={{ display: 'flex', gap: 10, fontSize: 15, lineHeight: 1.85, color: 'var(--text2)' }}>
+              <li key={idx} style={{ display: 'flex', gap: 12, fontSize: 17, lineHeight: 2.0, color: 'var(--text2)' }}>
                 <span style={{
-                  width: 22, height: 22, borderRadius: '50%',
+                  width: 26, height: 26, borderRadius: '50%',
                   background: 'var(--gold2)', border: '1px solid rgba(245,200,66,.3)',
-                  color: 'var(--gold)', fontSize: 11, fontWeight: 800,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
+                  color: 'var(--gold)', fontSize: 12, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
                 }}>
                   {idx + 1}
                 </span>
@@ -254,13 +285,13 @@ function RenderTokens({ tokens, keyBase = 0 }: { tokens: ContentToken[]; keyBase
         if (tok.type === 'code') return <CodeBlock key={k} code={tok.code} lang={tok.lang} />
         if (tok.type === 'table') return <TableBlock key={k} lines={tok.lines} />
         if (tok.type === 'callout') return (
-          <div key={k} className={`callout ${tok.ctype}`} style={{ margin: '14px 0', fontSize: 14, lineHeight: 1.85 }}>
-            <span className="callout-icon" style={{ fontSize: 18 }}>{CALLOUT_ICON[tok.ctype]}</span>
+          <div key={k} className={`callout ${tok.ctype}`} style={{ margin: '16px 0', fontSize: 16, lineHeight: 2.0 }}>
+            <span className="callout-icon" style={{ fontSize: 20 }}>{CALLOUT_ICON[tok.ctype]}</span>
             <div>{parseInline(tok.text, k * 100)}</div>
           </div>
         )
         if (tok.type === 'blockquote') return (
-          <blockquote key={k} className="quest-blockquote" style={{ fontSize: 14, lineHeight: 1.85 }}>
+          <blockquote key={k} className="quest-blockquote" style={{ fontSize: 15, lineHeight: 2.0 }}>
             {parseInline(tok.text, k * 100)}
           </blockquote>
         )
@@ -291,22 +322,21 @@ function H3Card({ section, index, total }: { section: H3Section; index: number; 
       minWidth: 0,
       background: accent.bgDark,
       border: `1px solid ${accent.border}`,
-      borderLeft: `4px solid ${accent.color}`,
-      borderRadius: 14,
-      padding: '20px 20px 22px',
+      borderLeft: `5px solid ${accent.color}`,
+      borderRadius: 18,
+      padding: total === 1 ? '32px 32px 36px' : '28px 26px 30px',
     }}>
-      {/* 섹션 헤딩 */}
       <div style={{
-        fontSize: total === 1 ? 16 : 14,
+        fontSize: total === 1 ? 20 : 18,
         fontWeight: 800,
         color: accent.color,
-        marginBottom: 14,
+        marginBottom: 20,
         lineHeight: 1.4,
-        letterSpacing: '-.01em',
+        letterSpacing: '-.02em',
       }}>
         {parseInline(section.heading, index * 1000)}
       </div>
-      <RenderTokens tokens={section.tokens} keyBase={index} />
+      <RenderTokens tokens={section.tokens} keyBase={index} numbered={total === 1} />
     </div>
   )
 }
@@ -316,51 +346,65 @@ function RenderBlocks({ blocks }: { blocks: Block[] }) {
   return (
     <>
       {blocks.map((block, i) => {
-        // h2 — 섹션 구분자
         if (block.kind === 'h2') return (
-          <div key={i} style={{ margin: '32px 0 20px', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+          <div key={i} style={{ margin: '40px 0 24px', paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
             <h2 style={{
-              fontSize: 20,
-              fontWeight: 800,
-              color: 'var(--text1)',
-              letterSpacing: '-.01em',
-              lineHeight: 1.4,
+              fontSize: 22, fontWeight: 800, color: 'var(--text1)',
+              letterSpacing: '-.02em', lineHeight: 1.4,
             }}>
               {parseInline(block.text, i * 1000)}
             </h2>
           </div>
         )
 
-        // 단독 컨텐츠
         if (block.kind === 'content') return (
-          <div key={i} style={{ margin: '6px 0 16px' }}>
+          <div key={i} style={{ margin: '8px 0 22px' }}>
             <RenderTokens tokens={block.tokens} keyBase={i} />
           </div>
         )
 
-        // 카드 그룹 (h3 섹션들)
         if (block.kind === 'cards') {
           const { sections } = block
           if (sections.length === 1) {
             return (
-              <div key={i} style={{ margin: '16px 0' }}>
+              <div key={i} style={{ margin: '22px 0' }}>
                 <H3Card section={sections[0]} index={0} total={1} />
               </div>
             )
           }
-          // 항상 최대 2개이므로 무조건 2컬럼
           return (
-            <div
-              key={i}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 14,
-                margin: '16px 0',
-              }}
-            >
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, margin: '22px 0' }}>
               {sections.map((s, si) => (
-                <H3Card key={si} section={s} index={si} total={sections.length} />
+                <H3Card key={si} section={s} index={si} total={2} />
+              ))}
+            </div>
+          )
+        }
+
+        // Steps 형식 (3개 이상)
+        if (block.kind === 'card-stack') {
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 24, margin: '22px 0' }}>
+              {block.sections.map((s, si) => (
+                <div key={si} style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
+                  <span style={{
+                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                    background: 'rgba(0,229,255,.08)', border: '1px solid rgba(0,229,255,.25)',
+                    color: 'var(--cyan)', fontSize: 13, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2,
+                  }}>
+                    {si + 1}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 18, fontWeight: 800, color: 'var(--text1)',
+                      marginBottom: 10, lineHeight: 1.4, letterSpacing: '-.02em',
+                    }}>
+                      {parseInline(s.heading, si * 1000)}
+                    </div>
+                    <RenderTokens tokens={s.tokens} keyBase={si} />
+                  </div>
+                </div>
               ))}
             </div>
           )
