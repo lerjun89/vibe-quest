@@ -64,7 +64,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 className="text-2xl font-bold text-[#f5c518]">시즌 1: 바이브코딩 입문</h1>
                 <p className="text-[#c8b89a] text-sm mt-0.5">바이브코딩 마왕을 무너뜨려라!</p>
@@ -74,16 +74,34 @@ export default function HomePage() {
                 <p className="text-xs text-[#c8b89a]">바이브코딩 마왕 HP</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 bg-[#3d2a1a] rounded-full h-4">
+            {/* 바이브코딩 마왕 HP 바 (줄어듦) */}
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-xs text-[#ff6b35] font-bold min-w-[28px]">🏰</span>
+              <div className="flex-1 bg-[#3d2a1a] rounded-full h-3 overflow-hidden">
                 <motion.div
-                  className="h-4 rounded-full bg-gradient-to-r from-[#4361ee] to-[#7b8fff]"
+                  className="h-3 rounded-full"
+                  style={{ background: 'linear-gradient(90deg, #ff4d6d, #ff8c00)' }}
+                  initial={{ width: '100%' }}
+                  animate={{ width: `${castleHp}%` }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
+                />
+              </div>
+              <span className="text-xs text-[#ff6b35] font-bold min-w-[60px] text-right">
+                -{Math.round(100 - castleHp)} 피해
+              </span>
+            </div>
+            {/* 퀘스트 진행률 바 (올라감) */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-[#4361ee] font-bold min-w-[28px]">⚔️</span>
+              <div className="flex-1 bg-[#3d2a1a] rounded-full h-3 overflow-hidden">
+                <motion.div
+                  className="h-3 rounded-full bg-gradient-to-r from-[#4361ee] to-[#7b8fff]"
                   initial={{ width: 0 }}
                   animate={{ width: `${progressPct}%` }}
                   transition={{ duration: 1, ease: 'easeOut' }}
                 />
               </div>
-              <span className="text-[#f5f0e8] font-bold text-sm min-w-[60px] text-right">
+              <span className="text-[#7b8fff] font-bold text-xs min-w-[60px] text-right">
                 {completedCount}/{totalQuests} 완료
               </span>
             </div>
