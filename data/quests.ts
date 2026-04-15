@@ -1773,7 +1773,7 @@ MCP 설정 파일에 API 키를 직접 쓰지 마. 환경변수로 관리해!
 "env": { "GITHUB_TOKEN": "ghp_실제키값" }
 
 # 안전
-"env": { "GITHUB_TOKEN": "${GITHUB_TOKEN}" }
+"env": { "GITHUB_TOKEN": "$GITHUB_TOKEN" }
 \`\`\`
 
 ### 3. 신뢰할 수 없는 MCP 서버
