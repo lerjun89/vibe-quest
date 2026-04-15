@@ -11,6 +11,7 @@ import Sidebar from '@/components/Sidebar'
 import QuestText from '@/components/QuestText'
 import QuizModal from '@/components/QuizModal'
 import AttackScene from '@/components/AttackScene'
+import { useTheme } from '@/components/ThemeProvider'
 
 const CHARACTER_EMOJI: Record<string, string> = {
   '용사': '🗡️',
@@ -28,6 +29,7 @@ export default function QuestPage() {
   const questId = params.questId as string
 
   const { character, completedQuests, completeQuest } = useQuestStore()
+  const { theme, toggle } = useTheme()
 
   const [showQuiz, setShowQuiz] = useState(false)
   const [showAttack, setShowAttack] = useState(false)
@@ -98,7 +100,7 @@ export default function QuestPage() {
       <header
         className="sticky top-0 z-30 flex items-center gap-4 px-6 py-3"
         style={{
-          background: 'rgba(7,8,15,.92)',
+          background: theme === 'dark' ? 'rgba(7,8,15,.92)' : 'rgba(255,255,255,.92)',
           backdropFilter: 'blur(20px) saturate(1.8)',
           borderBottom: '1px solid var(--rim)',
         }}
@@ -138,7 +140,14 @@ export default function QuestPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto md:ml-0">
+        <div className="flex items-center gap-3 ml-auto md:ml-0">
+          <button
+            onClick={toggle}
+            className="theme-toggle"
+            title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <span className="text-xl">{CHARACTER_EMOJI[character]}</span>
           <span className="hidden sm:block text-sm font-semibold" style={{ color: 'var(--gold)' }}>{character}</span>
         </div>
@@ -242,11 +251,12 @@ export default function QuestPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.12, duration: 0.4 }}
-            className="rounded-2xl mb-8"
+            className="rounded-2xl mb-6"
             style={{
               background: 'var(--panel)',
               border: '1px solid var(--rim)',
-              padding: '28px 28px 32px',
+              padding: '22px 24px 28px',
+              boxShadow: '0 2px 16px var(--shadow)',
             }}
           >
             <QuestText content={quest.content} />

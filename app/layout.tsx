@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono, Exo_2, Noto_Sans_KR } from 'next/font/google'
+import { ThemeProvider } from '@/components/ThemeProvider'
 import './globals.css'
 
 const geistSans = Geist({
@@ -38,8 +39,11 @@ export default function RootLayout({
     <html
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} ${exo2.variable} ${notoSansKr.variable} h-full antialiased`}
+      data-theme="dark"
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   )
 }
