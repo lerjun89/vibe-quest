@@ -112,7 +112,7 @@ export default function Sidebar({ activeChapterId, activeQuestId }: SidebarProps
       <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--rim)', background: 'var(--card)' }}>
         <div className="flex items-center justify-between mb-1.5">
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: 'var(--red)', fontFamily: "'Exo 2', sans-serif", textTransform: 'uppercase' }}>
-            🏰 마왕성 HP
+            🏰 바이브코딩 마왕 HP
           </span>
           <span style={{ fontSize: 10, color: 'var(--red)', fontFamily: "'Exo 2', sans-serif", fontWeight: 700 }}>
             {Math.round(castleHp)}/100
@@ -129,7 +129,7 @@ export default function Sidebar({ activeChapterId, activeQuestId }: SidebarProps
           }} />
         </div>
         {castleHp === 0 && (
-          <p style={{ textAlign: 'center', color: 'var(--gold)', fontSize: 11, fontWeight: 700, marginTop: 6 }}>🎉 마왕성 격파!</p>
+          <p style={{ textAlign: 'center', color: 'var(--gold)', fontSize: 11, fontWeight: 700, marginTop: 6 }}>🎉 바이브코딩 마왕 격파!</p>
         )}
       </div>
 

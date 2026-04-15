@@ -37,7 +37,7 @@ export default function CharacterSelect() {
           ⚔️ 바이브코딩 퀘스트
         </h1>
         <p className="text-[#c8b89a] text-lg">용사여, 직업을 선택하라!</p>
-        <p className="text-[#7c6a5a] text-sm mt-1">마왕성을 무너뜨릴 동료를 선택해줘</p>
+        <p className="text-[#7c6a5a] text-sm mt-1">바이브코딩 마왕을 무너뜨릴 동료를 선택해줘</p>
       </motion.div>
 
       {/* 캐릭터 그리드 */}

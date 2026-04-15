@@ -67,11 +67,11 @@ export default function HomePage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h1 className="text-2xl font-bold text-[#f5c518]">시즌 1: 바이브코딩 입문</h1>
-                <p className="text-[#c8b89a] text-sm mt-0.5">마왕성을 무너뜨려라!</p>
+                <p className="text-[#c8b89a] text-sm mt-0.5">바이브코딩 마왕을 무너뜨려라!</p>
               </div>
               <div className="text-right">
                 <p className="text-3xl font-bold text-[#ff6b35]">{Math.round(castleHp)}<span className="text-base text-[#c8b89a]">/100</span></p>
-                <p className="text-xs text-[#c8b89a]">마왕성 HP</p>
+                <p className="text-xs text-[#c8b89a]">바이브코딩 마왕 HP</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

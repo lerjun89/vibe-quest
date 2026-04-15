@@ -301,7 +301,7 @@ export default function QuestPage() {
                   <span>🗡️</span>
                 </button>
                 <p style={{ marginTop: 10, fontSize: 12, color: 'var(--text4)' }}>
-                  퀴즈를 풀고 마왕성을 공격해!
+                  퀴즈를 풀고 바이브코딩 마왕을 공격해!
                 </p>
               </>
             ) : (
