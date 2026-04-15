@@ -133,7 +133,7 @@ type H3Section = { heading: string; tokens: ContentToken[] }
 type Block =
   | { kind: 'h2'; text: string }
   | { kind: 'content'; tokens: ContentToken[] }
-  | { kind: 'cards'; sections: H3Section[] }
+  | { kind: 'cards'; sections: H3Section[] }   // 항상 최대 2개씩
 
 function groupBlocks(tokens: Token[]): Block[] {
   const blocks: Block[] = []
@@ -147,18 +147,22 @@ function groupBlocks(tokens: Token[]): Block[] {
     }
 
     if (tok.type === 'h3') {
-      const sections: H3Section[] = []
+      // h3 섹션들을 최대 2개씩 페어로 묶음
       while (i < tokens.length && tokens[i].type === 'h3') {
-        const heading = (tokens[i] as { type: 'h3'; text: string }).text
-        i++
-        const content: ContentToken[] = []
-        while (i < tokens.length && tokens[i].type !== 'h2' && tokens[i].type !== 'h3') {
-          content.push(tokens[i] as ContentToken)
+        const pair: H3Section[] = []
+        // 최대 2개만 한 쌍으로
+        for (let p = 0; p < 2 && i < tokens.length && tokens[i].type === 'h3'; p++) {
+          const heading = (tokens[i] as { type: 'h3'; text: string }).text
           i++
+          const content: ContentToken[] = []
+          while (i < tokens.length && tokens[i].type !== 'h2' && tokens[i].type !== 'h3') {
+            content.push(tokens[i] as ContentToken)
+            i++
+          }
+          pair.push({ heading, tokens: content })
         }
-        sections.push({ heading, tokens: content })
+        blocks.push({ kind: 'cards', sections: pair })
       }
-      blocks.push({ kind: 'cards', sections })
       continue
     }
 
@@ -271,41 +275,34 @@ function RenderTokens({ tokens, keyBase = 0 }: { tokens: ContentToken[]; keyBase
 
 // ── 카드 색상 ─────────────────────────────────────────────────
 const CARD_ACCENTS = [
-  { color: 'var(--cyan)',   bg: 'var(--cyan3)',   borderColor: 'rgba(0,229,255,.25)' },
-  { color: 'var(--purple)', bg: 'var(--purple3)', borderColor: 'rgba(176,96,255,.25)' },
-  { color: 'var(--gold)',   bg: 'var(--gold3)',   borderColor: 'rgba(245,200,66,.25)' },
-  { color: 'var(--green)',  bg: 'var(--green3)',  borderColor: 'rgba(57,255,133,.25)' },
-  { color: 'var(--red)',    bg: 'var(--red3)',    borderColor: 'rgba(255,77,109,.25)' },
+  { color: '#00e5ff',   bgDark: 'rgba(0,229,255,.08)',   bgLight: 'rgba(0,134,204,.06)',   border: 'rgba(0,229,255,.3)' },
+  { color: '#b060ff',   bgDark: 'rgba(176,96,255,.08)',  bgLight: 'rgba(124,58,237,.06)',  border: 'rgba(176,96,255,.3)' },
+  { color: '#f5c842',   bgDark: 'rgba(245,200,66,.08)',  bgLight: 'rgba(200,146,10,.06)',  border: 'rgba(245,200,66,.3)' },
+  { color: '#39ff85',   bgDark: 'rgba(57,255,133,.08)',  bgLight: 'rgba(10,138,74,.06)',   border: 'rgba(57,255,133,.3)' },
+  { color: '#ff4d6d',   bgDark: 'rgba(255,77,109,.08)',  bgLight: 'rgba(214,51,85,.06)',   border: 'rgba(255,77,109,.3)' },
 ]
 
 // ── H3 카드 ──────────────────────────────────────────────────
-function H3Card({ section, index }: { section: H3Section; index: number }) {
+function H3Card({ section, index, total }: { section: H3Section; index: number; total: number }) {
   const accent = CARD_ACCENTS[index % CARD_ACCENTS.length]
   return (
     <div style={{
       flex: 1,
       minWidth: 0,
-      background: 'var(--lift)',
-      border: `1px solid ${accent.borderColor}`,
-      borderTop: `3px solid ${accent.color}`,
+      background: accent.bgDark,
+      border: `1px solid ${accent.border}`,
+      borderLeft: `4px solid ${accent.color}`,
       borderRadius: 14,
-      padding: '20px 22px 22px',
-      boxShadow: '0 2px 12px var(--shadow)',
+      padding: '20px 20px 22px',
     }}>
-      {/* 섹션 헤딩 뱃지 */}
+      {/* 섹션 헤딩 */}
       <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        fontSize: 13,
-        fontWeight: 700,
+        fontSize: total === 1 ? 16 : 14,
+        fontWeight: 800,
         color: accent.color,
-        background: accent.bg,
-        border: `1px solid ${accent.borderColor}`,
-        borderRadius: 8,
-        padding: '4px 12px',
         marginBottom: 14,
-        letterSpacing: '.01em',
+        lineHeight: 1.4,
+        letterSpacing: '-.01em',
       }}>
         {parseInline(section.heading, index * 1000)}
       </div>
@@ -347,23 +344,23 @@ function RenderBlocks({ blocks }: { blocks: Block[] }) {
           if (sections.length === 1) {
             return (
               <div key={i} style={{ margin: '16px 0' }}>
-                <H3Card section={sections[0]} index={0} />
+                <H3Card section={sections[0]} index={0} total={1} />
               </div>
             )
           }
-          // 2개 이상 → 그리드 (2개면 무조건 2컬럼, 3개+ 반응형)
+          // 항상 최대 2개이므로 무조건 2컬럼
           return (
             <div
               key={i}
               style={{
                 display: 'grid',
-                gridTemplateColumns: sections.length === 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+                gridTemplateColumns: '1fr 1fr',
                 gap: 14,
                 margin: '16px 0',
               }}
             >
               {sections.map((s, si) => (
-                <H3Card key={si} section={s} index={si} />
+                <H3Card key={si} section={s} index={si} total={sections.length} />
               ))}
             </div>
           )
