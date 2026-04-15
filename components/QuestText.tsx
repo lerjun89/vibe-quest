@@ -285,11 +285,12 @@ function H3Card({ section, index }: { section: H3Section; index: number }) {
     <div style={{
       flex: 1,
       minWidth: 0,
-      background: 'var(--surface)',
+      background: 'var(--lift)',
       border: `1px solid ${accent.borderColor}`,
       borderTop: `3px solid ${accent.color}`,
       borderRadius: 14,
-      padding: '18px 20px 20px',
+      padding: '20px 22px 22px',
+      boxShadow: '0 2px 12px var(--shadow)',
     }}>
       {/* 섹션 헤딩 뱃지 */}
       <div style={{
@@ -350,13 +351,13 @@ function RenderBlocks({ blocks }: { blocks: Block[] }) {
               </div>
             )
           }
-          // 2개 이상 → 반응형 그리드
+          // 2개 이상 → 그리드 (2개면 무조건 2컬럼, 3개+ 반응형)
           return (
             <div
               key={i}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gridTemplateColumns: sections.length === 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: 14,
                 margin: '16px 0',
               }}
