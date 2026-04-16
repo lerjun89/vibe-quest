@@ -20,12 +20,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeChapterId, activeQuestId }: SidebarProps) {
-  const { completedQuests, character, xp, level, castleHp } = useQuestStore()
-
-  const XP_THRESHOLDS = [100, 250, 450, 700, 1000]
-  const currentThreshold = XP_THRESHOLDS[Math.min(level - 1, XP_THRESHOLDS.length - 1)] ?? 1000
-  const prevThreshold = level > 1 ? (XP_THRESHOLDS[level - 2] ?? 0) : 0
-  const xpProgress = Math.min(100, ((xp - prevThreshold) / (currentThreshold - prevThreshold)) * 100)
+  const { completedQuests, character, castleHp } = useQuestStore()
 
   return (
     <aside
@@ -57,7 +52,7 @@ export default function Sidebar({ activeChapterId, activeQuestId }: SidebarProps
           borderRadius: '50%', pointerEvents: 'none',
         }} />
 
-        <div className="flex items-center gap-2.5 mb-3">
+        <div className="flex items-center gap-2.5">
           <div style={{
             width: 40, height: 40, borderRadius: 10,
             background: 'rgba(176,96,255,.12)',
@@ -68,43 +63,13 @@ export default function Sidebar({ activeChapterId, activeQuestId }: SidebarProps
             {character ? CHARACTER_EMOJI[character] : '?'}
           </div>
           <div>
-            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: 'var(--gold)', fontFamily: "'Exo 2', sans-serif", textTransform: 'uppercase', marginBottom: 2 }}>
-              Lv.{level}
-            </p>
             <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 900, color: 'var(--text1)' }}>
               {character ?? '캐릭터 없음'}
             </p>
+            <p style={{ fontSize: 10, color: 'var(--text4)', marginTop: 2 }}>
+              퀘스트 {completedQuests.length}개 완료
+            </p>
           </div>
-        </div>
-
-        {/* XP 바 */}
-        <div className="flex justify-between mb-1" style={{ fontSize: 9, color: 'var(--text4)', fontFamily: "'Exo 2', sans-serif", letterSpacing: '.06em' }}>
-          <span>XP</span>
-          <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>{xp} / {currentThreshold}</span>
-        </div>
-        <div style={{ height: 5, background: '#070a12', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--rim)' }}>
-          <div style={{
-            height: '100%',
-            width: `${xpProgress}%`,
-            background: 'linear-gradient(90deg, #00b8cc, var(--cyan))',
-            borderRadius: 3,
-            boxShadow: '0 0 6px rgba(0,229,255,.3)',
-            transition: 'width 1s ease',
-          }} />
-        </div>
-
-        {/* 스탯 그리드 */}
-        <div className="grid grid-cols-3 gap-1.5 mt-2.5">
-          {[
-            { label: 'QUESTS', value: completedQuests.length },
-            { label: 'LEVEL', value: level },
-            { label: 'XP', value: xp },
-          ].map(({ label, value }) => (
-            <div key={label} style={{ background: 'var(--card)', border: '1px solid var(--rim)', borderRadius: 6, padding: '6px 4px', textAlign: 'center' }}>
-              <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 900, color: 'var(--gold)', lineHeight: 1 }}>{value}</div>
-              <div style={{ fontSize: 8, color: 'var(--text4)', marginTop: 2, letterSpacing: '.06em', textTransform: 'uppercase' }}>{label}</div>
-            </div>
-          ))}
         </div>
       </div>
 

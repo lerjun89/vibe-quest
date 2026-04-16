@@ -20,7 +20,7 @@ const CHARACTER_EMOJI: Record<string, string> = {
 
 export default function HomePage() {
   const router = useRouter()
-  const { character, completedQuests, level, xp, castleHp } = useQuestStore()
+  const { character, completedQuests, castleHp } = useQuestStore()
 
   useEffect(() => {
     if (!character) {
@@ -46,7 +46,6 @@ export default function HomePage() {
           <Link href="/home" className="hover:text-[#f5c518] transition-colors">홈</Link>
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-[#c8b89a] text-sm">Lv.{level}</span>
           <span className="text-2xl">{CHARACTER_EMOJI[character]}</span>
           <span className="text-[#f5c518] font-semibold text-sm">{character}</span>
         </div>
