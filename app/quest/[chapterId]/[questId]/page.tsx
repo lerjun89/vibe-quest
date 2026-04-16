@@ -305,41 +305,62 @@ export default function QuestPage() {
                 </p>
               </>
             ) : (
-              nextQuest ? (
-                <Link
-                  href={`/quest/${chapterId}/${nextQuest.id}`}
-                  className="inline-flex items-center gap-2 font-bold transition-all"
-                  style={{
-                    padding: '13px 30px',
-                    borderRadius: 12,
-                    background: 'var(--green3)',
-                    color: 'var(--green)',
-                    border: '1.5px solid rgba(57,255,133,.3)',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    fontFamily: "'Exo 2', sans-serif",
-                  }}
-                >
-                  다음 퀘스트 →
-                </Link>
-              ) : (
-                <Link
-                  href="/home"
-                  className="inline-flex items-center gap-2 font-bold transition-all"
-                  style={{
-                    padding: '13px 30px',
-                    borderRadius: 12,
-                    background: 'var(--gold2)',
-                    color: 'var(--gold)',
-                    border: '1.5px solid rgba(245,200,66,.3)',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    fontFamily: "'Exo 2', sans-serif",
-                  }}
-                >
-                  🏠 홈으로 돌아가기
-                </Link>
-              )
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-3">
+                  {nextQuest ? (
+                    <Link
+                      href={`/quest/${chapterId}/${nextQuest.id}`}
+                      className="inline-flex items-center gap-2 font-bold transition-all"
+                      style={{
+                        padding: '13px 30px',
+                        borderRadius: 12,
+                        background: 'var(--green3)',
+                        color: 'var(--green)',
+                        border: '1.5px solid rgba(57,255,133,.3)',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        fontFamily: "'Exo 2', sans-serif",
+                      }}
+                    >
+                      다음 퀘스트 →
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/home"
+                      className="inline-flex items-center gap-2 font-bold transition-all"
+                      style={{
+                        padding: '13px 30px',
+                        borderRadius: 12,
+                        background: 'var(--gold2)',
+                        color: 'var(--gold)',
+                        border: '1.5px solid rgba(245,200,66,.3)',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        fontFamily: "'Exo 2', sans-serif",
+                      }}
+                    >
+                      🏠 홈으로 돌아가기
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => setShowQuiz(true)}
+                    className="inline-flex items-center gap-2 font-bold transition-all"
+                    style={{
+                      padding: '13px 22px',
+                      borderRadius: 12,
+                      background: 'transparent',
+                      color: 'var(--text3)',
+                      border: '1.5px solid var(--rim)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fontFamily: "'Exo 2', sans-serif",
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🔄 다시 풀기
+                  </button>
+                </div>
+              </div>
             )}
           </motion.div>
         </main>

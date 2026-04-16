@@ -8,6 +8,7 @@ import { useQuestStore } from '@/store/questStore'
 import { CHAPTERS } from '@/data/chapters'
 import { QUESTS } from '@/data/quests'
 import Sidebar from '@/components/Sidebar'
+import { useTheme } from '@/components/ThemeProvider'
 
 const CHARACTER_EMOJI: Record<string, string> = {
   '용사': '🗡️',
@@ -21,6 +22,7 @@ const CHARACTER_EMOJI: Record<string, string> = {
 export default function HomePage() {
   const router = useRouter()
   const { character, completedQuests, castleHp } = useQuestStore()
+  const { theme, toggle } = useTheme()
 
   useEffect(() => {
     if (!character) {
@@ -46,6 +48,13 @@ export default function HomePage() {
           <Link href="/home" className="hover:text-[#f5c518] transition-colors">홈</Link>
         </nav>
         <div className="ml-auto flex items-center gap-3">
+          <button
+            onClick={toggle}
+            className="theme-toggle"
+            title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <span className="text-2xl">{CHARACTER_EMOJI[character]}</span>
           <span className="text-[#f5c518] font-semibold text-sm">{character}</span>
         </div>
