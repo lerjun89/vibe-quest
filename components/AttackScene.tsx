@@ -77,11 +77,21 @@ export default function AttackScene({ isChapterComplete = false, onComplete }: A
 
           {/* 마왕성 */}
           <motion.div
-            className="flex flex-col items-center"
+            className="flex flex-col items-center relative"
             initial={{ x: 100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
+            {/* 데미지 숫자 — 성 위에 크게 표시 */}
+            <motion.p
+              className="text-3xl font-black text-[#ff4444] absolute -top-10"
+              style={{ textShadow: '0 0 12px rgba(255,68,68,0.8)' }}
+              initial={{ opacity: 0, y: 0, scale: 0.5 }}
+              animate={{ opacity: [0, 1, 1, 0], y: [0, -30, -50, -70], scale: [0.5, 1.3, 1.1, 0.8] }}
+              transition={{ duration: 1.4, delay: 0.8 }}
+            >
+              -{Math.ceil(damagePerQuest)} HP
+            </motion.p>
             <motion.div
               className="text-7xl"
               animate={
@@ -103,33 +113,18 @@ export default function AttackScene({ isChapterComplete = false, onComplete }: A
                 transition={{ duration: 0.6, delay: 0.9 }}
               />
             </div>
-            <motion.p
-              className="text-xs text-[#ff4444] mt-1 font-bold"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: [0, 1, 1, 0], y: [-6, -16, -20, -26] }}
-              transition={{ duration: 1.2, delay: 0.9 }}
-            >
-              -{Math.ceil(damagePerQuest)} HP
-            </motion.p>
-            <p className="text-xs text-[#ff6b35] font-bold">{Math.round(castleHp)}/100</p>
+            <p className="text-xs text-[#ff6b35] font-bold mt-1">{Math.round(castleHp)}/100</p>
           </motion.div>
         </div>
 
-        {/* XP 획득 표시 */}
+        {/* 퀘스트 완료 */}
         <motion.div
-          className="flex flex-col items-center gap-2"
+          className="flex flex-col items-center gap-1"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2 }}
+          transition={{ delay: 1.3 }}
         >
-          <motion.p
-            className="text-3xl font-bold text-[#f5c518]"
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 0.6, delay: 1.2 }}
-          >
-            +20 XP!
-          </motion.p>
-          <p className="text-[#c8b89a] text-sm">퀘스트 완료!</p>
+          <p className="text-lg font-bold text-[#f5f0e8]">퀘스트 완료!</p>
         </motion.div>
 
         {/* 파티클 */}
