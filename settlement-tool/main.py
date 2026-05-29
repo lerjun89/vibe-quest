@@ -125,13 +125,19 @@ def read_src_sheet(filepath, sheet_name, header_row, data_start_row):
     header_row: 1-based 헤더 행 번호
     data_start_row: 1-based 데이터 시작 행
     """
+    # header_row 이전 행들을 skiprows 로 건너뛰고, header=0 으로 읽음
+    skip_before = list(range(header_row - 1))  # 0-indexed 행 번호
     df = pd.read_excel(
         filepath,
         sheet_name=sheet_name,
-        header=header_row - 1,      # 0-based
-        skiprows=list(range(header_row, data_start_row - 1)),  # 헤더~데이터 사이 행 스킵
+        header=0,
+        skiprows=skip_before,
         engine="openpyxl",
     )
+    # 헤더와 데이터 시작 사이에 빈/구분 행이 있으면 제거
+    gap = data_start_row - header_row - 1
+    if gap > 0:
+        df = df.iloc[gap:]
     headers = [str(h) if h is not None else "" for h in df.columns]
     rows = []
     for r in df.itertuples(index=False):
@@ -199,35 +205,72 @@ def read_attach_rows(filepath, start_row=2, skip_last=False):
 # ──────────────────────────────────────────────────────────────
 
 def get_dest_headers(ws, header_row, start_col_idx):
-    """대상 시트의 헤더 행에서 start_col 이후 헤더 목록 반환"""
+    """대상 시트의 헤더 행에서 start_col 이후 헤더 목록 반환 (중간 빈 셀 허용)"""
     headers = []
+    consecutive_empty = 0
     for c in range(start_col_idx, ws.max_column + 1):
         val = ws.cell(row=header_row, column=c).value
         if val is None:
-            if headers:
+            consecutive_empty += 1
+            if consecutive_empty >= 3:
                 break
-            continue
-        headers.append(str(val))
+            headers.append("")
+        else:
+            consecutive_empty = 0
+            headers.append(str(val))
+    # 끝의 빈 헤더 제거
+    while headers and headers[-1] == "":
+        headers.pop()
     return headers
 
 
+import re as _re
+
+def _norm(s):
+    """공백·줄바꿈 제거 후 소문자 정규화"""
+    return _re.sub(r'\s+', '', str(s).strip())
+
+
 def match_columns(src_headers, dest_headers):
-    """dest_headers 순서로 src_headers 에서 매칭 인덱스 반환"""
+    """
+    dest_headers 순서로 src_headers 에서 매칭 인덱스 반환.
+    1순위: 정규화 후 완전일치
+    2순위: 가장 긴 공통 부분문자열을 가진 소스 컬럼 (짧은 컬럼이 긴 컬럼에 잘못 매칭되는 것 방지)
+    """
+    src_norm = [_norm(h) for h in src_headers]
     mapping = []
     for dh in dest_headers:
-        dh_c = dh.replace("\n", "").strip()
+        dh_n = _norm(dh)
         found = None
-        for si, sh in enumerate(src_headers):
-            sh_c = sh.replace("\n", "").strip()
-            if dh_c == sh_c or dh_c in sh_c or sh_c in dh_c:
+
+        # 1순위: 완전일치
+        for si, sn in enumerate(src_norm):
+            if dh_n == sn:
                 found = si
                 break
+
+        # 2순위: 부분 포함 — 더 긴 공통 길이를 가진 것 우선
+        if found is None and dh_n:
+            best_si, best_len = None, 0
+            for si, sn in enumerate(src_norm):
+                if not sn:
+                    continue
+                if sn in dh_n or dh_n in sn:
+                    common_len = min(len(sn), len(dh_n))
+                    if common_len > best_len:
+                        best_len = common_len
+                        best_si = si
+            # 너무 짧은 단어는 오매칭 방지 (2글자 이상)
+            if best_si is not None and best_len >= 2:
+                found = best_si
+
         mapping.append(found)
     return mapping
 
 
 def clear_data_range(ws, start_row, start_col_idx, num_cols):
-    """데이터 범위 초기화 (수식 셀 제외)"""
+    """데이터 범위 초기화 (수식 셀 제외, start_col_idx 왼쪽은 절대 건드리지 않음)"""
+    empty_streak = 0
     for r in range(start_row, ws.max_row + 1):
         has_data = False
         for c in range(start_col_idx, start_col_idx + num_cols):
@@ -235,8 +278,12 @@ def clear_data_range(ws, start_row, start_col_idx, num_cols):
             if cell.value is not None and not is_formula(cell):
                 has_data = True
                 break
-        if not has_data and r > start_row + 3:
-            break
+        if not has_data:
+            empty_streak += 1
+            if empty_streak >= 5:
+                break
+        else:
+            empty_streak = 0
         for c in range(start_col_idx, start_col_idx + num_cols):
             cell = ws.cell(row=r, column=c)
             if not is_formula(cell):
@@ -244,11 +291,11 @@ def clear_data_range(ws, start_row, start_col_idx, num_cols):
 
 
 def write_rows(ws, rows, start_row, start_col_idx):
-    """rows 를 지정 위치부터 기록 (수식 셀 건너뜀)"""
+    """rows 를 지정 위치부터 기록 (수식 셀 건너뜀, start_col_idx 왼쪽은 절대 건드리지 않음)"""
     for ri, row_data in enumerate(rows):
         r = start_row + ri
         for ci, val in enumerate(row_data):
-            c = start_col_idx + ci
+            c = start_col_idx + ci   # start_col_idx 이상만 쓰여짐
             cell = ws.cell(row=r, column=c)
             if is_formula(cell):
                 continue
