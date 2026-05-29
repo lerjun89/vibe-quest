@@ -72,11 +72,21 @@ SRC_SHEET_CONFIG = {
 # ──────────────────────────────────────────────────────────────
 
 def clean(v):
-    """None/NaN → None, 나머지는 그대로"""
+    """None/NaN → None, numpy 타입 → Python 기본형, 나머지는 그대로"""
     if v is None:
         return None
     if isinstance(v, float) and math.isnan(v):
         return None
+    # numpy 타입 변환 (bool은 반드시 먼저 — np.bool_ 은 int 의 서브클래스)
+    type_name = type(v).__name__
+    if type_name == 'bool_':          # numpy bool
+        return bool(v)
+    if type_name in ('int8', 'int16', 'int32', 'int64',
+                     'uint8', 'uint16', 'uint32', 'uint64'):
+        return int(v)
+    if type_name in ('float16', 'float32', 'float64'):
+        f = float(v)
+        return None if math.isnan(f) else f
     return v
 
 
@@ -302,11 +312,25 @@ def write_rows(ws, rows, start_row, start_col_idx):
     for ri, row_data in enumerate(rows):
         r = start_row + ri
         for ci, val in enumerate(row_data):
-            c = start_col_idx + ci   # start_col_idx 이상만 쓰여짐
+            c = start_col_idx + ci
             cell = ws.cell(row=r, column=c)
             if is_formula(cell):
                 continue
             cell.value = val
+
+
+def expand_tables(ws, last_data_row):
+    """
+    시트 내 모든 Excel 테이블의 끝 행을 last_data_row 로 확장.
+    수납내역(효) 등 SUMIFS 가 표 참조(표7[...])를 쓸 때 범위가 늘어나야 함.
+    """
+    import re
+    for tbl in ws.tables.values():
+        m = re.match(r'^([A-Z]+)(\d+):([A-Z]+)(\d+)$', tbl.ref)
+        if m:
+            sc, sr, ec, er = m.groups()
+            if int(er) < last_data_row:
+                tbl.ref = f"{sc}{sr}:{ec}{last_data_row}"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -369,6 +393,7 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
     # 기존 데이터 지우고 쓰기
     clear_data_range(ws_dest, start_row, start_col_idx, len(dest_headers))
     write_rows(ws_dest, mapped_rows, start_row, start_col_idx)
+    expand_tables(ws_dest, start_row + len(mapped_rows) - 1)
     log(f"  [{sheet_name}] {len(mapped_rows)}행 기록 완료")
 
 
@@ -385,6 +410,7 @@ def process_attach(ws_dest, filepath, start_row, start_col,
     num_cols = max(len(r) for r in rows)
     clear_data_range(ws_dest, start_row, start_col_idx, num_cols)
     write_rows(ws_dest, rows, start_row, start_col_idx)
+    expand_tables(ws_dest, start_row + len(rows) - 1)
     if log:
         log(f"  [{sheet_name}] 기록 완료")
 
