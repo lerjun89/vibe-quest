@@ -1,66 +1,49 @@
 @echo off
-chcp 65001 > nul
-echo === 정산 자동화 도구 빌드 ===
+echo === Build: Settlement Automation Tool ===
 echo.
 
-REM Python 존재 확인
 python --version > nul 2>&1
 if errorlevel 1 (
-    echo [오류] Python이 설치되지 않았습니다.
-    echo https://www.python.org 에서 Python 3.10 이상을 설치하세요.
+    echo [ERROR] Python not found. Install Python 3.10+ from https://www.python.org
     pause
     exit /b 1
 )
 
-REM 가상환경 생성 (없으면)
 if not exist venv (
-    echo [1/4] 가상환경 생성 중...
+    echo [1/4] Creating virtual environment...
     python -m venv venv
     if errorlevel 1 (
-        echo [오류] 가상환경 생성 실패
+        echo [ERROR] Failed to create venv
         pause
         exit /b 1
     )
 )
 
-echo [2/4] 패키지 설치 중...
+echo [2/4] Installing packages...
 call venv\Scripts\activate.bat
 pip install -r requirements.txt -q
 if errorlevel 1 (
-    echo [오류] 패키지 설치 실패
+    echo [ERROR] pip install failed
     pause
     exit /b 1
 )
 
-echo [3/4] EXE 빌드 중...
-
-REM credentials.json 이 있으면 번들에 포함, 없으면 제외
-if exist credentials.json (
-    pyinstaller --onefile --windowed --name "정산자동화" --add-data "credentials.json;." main.py
-) else (
-    pyinstaller --onefile --windowed --name "정산자동화" main.py
-    echo.
-    echo [주의] credentials.json 이 없습니다.
-    echo       EXE 실행 전 반드시 credentials.json 을 dist 폴더 안에 넣어주세요.
-    echo       발급 방법은 google_setup.txt 를 참고하세요.
-)
-
+echo [3/4] Building EXE...
+pyinstaller --onefile --windowed --name settlement main.py
 if errorlevel 1 (
-    echo [오류] EXE 빌드 실패
+    echo [ERROR] PyInstaller failed
     pause
     exit /b 1
 )
 
 echo.
-echo [4/4] 완료!
+echo [4/4] Done!
 echo.
-echo ┌─────────────────────────────────────────────┐
-echo │ 사용 방법                                   │
-echo │                                             │
-echo │ 1. dist\정산자동화.exe 를 원하는 폴더로 이동│
-echo │ 2. credentials.json 을 같은 폴더에 복사     │
-echo │    (google_setup.txt 참고)                  │
-echo │ 3. 프로그램 실행 후 Google 로그인 버튼 클릭 │
-echo └─────────────────────────────────────────────┘
+echo  Output: dist\settlement.exe
+echo.
+echo  Next steps:
+echo  1. Copy dist\settlement.exe to your working folder
+echo  2. Copy credentials.json to the same folder (see google_setup.txt)
+echo  3. Run settlement.exe and click Google Login
 echo.
 pause
