@@ -168,6 +168,13 @@ def filter_rows_by_month(headers, rows, date_col_names, year, month):
         # 총합 행 스킵
         if is_total_row(row):
             continue
+        # 구분선 행 스킵 — 실제 데이터가 거의 없는 행(날짜 문자열만 있는 행 등)
+        real_vals = sum(
+            1 for v in row
+            if v is not None and v is not False and str(v).strip() not in ('', '0', '0.0')
+        )
+        if real_vals < 2:
+            continue
         if date_idx is not None and date_idx < len(row):
             ym = parse_ym(row[date_idx])
             # 날짜 파싱 불가(구분선 등) → 스킵
@@ -342,6 +349,17 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
 
     # 컬럼 매핑
     mapping = match_columns(src_headers, dest_headers)
+
+    # 매핑 결과 로그 (처음 5개만)
+    for i, (dh, si) in enumerate(zip(dest_headers[:5], mapping[:5])):
+        sh = src_headers[si] if si is not None else "없음"
+        log(f"    컬럼 매핑: [{dh}] ← [{sh}]")
+
+    # 매핑 안 된 대상 컬럼 경고
+    missing = [dest_headers[i] for i, si in enumerate(mapping) if si is None and dest_headers[i] not in ('열1','열2','열3','날짜변환','CMS등록(SO)')]
+    if missing:
+        log(f"    [주의] 매핑 안 됨: {missing[:5]}")
+
     mapped_rows = []
     for row in filtered:
         new_row = [row[idx] if (idx is not None and idx < len(row)) else None
