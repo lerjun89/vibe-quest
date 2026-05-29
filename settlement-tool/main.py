@@ -248,21 +248,23 @@ def apply_column_mapping(rows, mapping):
 
 def read_excel_rows(filepath, start_row=2, skip_last=False):
     """
-    엑셀 파일에서 start_row 부터 데이터를 읽어 [[값,...]] 반환.
-    skip_last=True 이면 마지막 행 제외.
+    pandas로 엑셀 파일을 빠르게 읽어 [[값,...]] 반환.
+    start_row: 1-based 행 번호 (2 = 두 번째 행부터)
+    skip_last: True 이면 마지막 행 제외.
     총합 행 제외.
     """
-    wb = openpyxl.load_workbook(filepath, data_only=True)
-    ws = wb.active
-    rows = []
-    for r in range(start_row, ws.max_row + 1):
-        row_vals = [ws.cell(row=r, column=c).value for c in range(1, ws.max_column + 1)]
-        # 완전 빈 행 제외
-        if not any(v is not None for v in row_vals):
-            continue
-        if is_total_row(row_vals):
-            continue
-        rows.append(row_vals)
+    import pandas as pd
+    # header=None 으로 읽고 skiprows 로 원하는 행부터 시작
+    df = pd.read_excel(filepath, header=None, skiprows=start_row - 1,
+                       engine="openpyxl")
+    # 완전 빈 행 제외
+    df = df.dropna(how="all")
+    # 총합 행 제외
+    df = df[~df.iloc[:, 0].astype(str).str.strip().isin(["총합", "합계", "합 계"])]
+    # NaN → None 변환
+    rows = [[None if (isinstance(v, float) and __import__('math').isnan(v)) else v
+             for v in row]
+            for row in df.values.tolist()]
     if skip_last and rows:
         rows = rows[:-1]
     return rows
