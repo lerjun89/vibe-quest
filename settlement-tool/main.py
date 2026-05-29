@@ -220,6 +220,14 @@ def read_attach_rows(filepath, start_row=2, skip_last=False):
     df = df.dropna(how="all")
     # 총합 행 제외
     df = df[~df.iloc[:, 0].astype(str).str.strip().isin(["총합", "합계", "합 계"])]
+    # 0.0/1.0/NaN 만 있는 float 컬럼 → Python bool 로 변환 (Excel TRUE/FALSE 유지)
+    for col in df.columns:
+        if df[col].dtype == float:
+            unique_vals = set(df[col].dropna().unique())
+            if unique_vals.issubset({0.0, 1.0}):
+                df[col] = df[col].apply(
+                    lambda x: None if (isinstance(x, float) and math.isnan(x)) else bool(x)
+                )
     rows = [[clean(v) for v in row] for row in df.values.tolist()]
     if skip_last and rows:
         rows = rows[:-1]
