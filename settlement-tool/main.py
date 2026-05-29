@@ -72,7 +72,7 @@ SRC_SHEET_CONFIG = {
 # ──────────────────────────────────────────────────────────────
 
 def clean(v):
-    """None/NaN → None, numpy 타입 → Python 기본형, 나머지는 그대로"""
+    """None/NaN → None, numpy 타입 → Python 기본형, 날짜 문자열 → datetime, 나머지는 그대로"""
     if v is None:
         return None
     if isinstance(v, float) and math.isnan(v):
@@ -87,6 +87,16 @@ def clean(v):
     if type_name in ('float16', 'float32', 'float64'):
         f = float(v)
         return None if math.isnan(f) else f
+    # 날짜처럼 보이는 문자열 → datetime (Excel 날짜 수식과 호환되도록)
+    if isinstance(v, str):
+        import re as _re2
+        m = _re2.match(r'^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$', v.strip())
+        if m:
+            yr, mo, dy = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            hr = int(m.group(4)) if m.group(4) else 0
+            mn = int(m.group(5)) if m.group(5) else 0
+            sc = int(m.group(6)) if m.group(6) else 0
+            return datetime(yr, mo, dy, hr, mn, sc)
     return v
 
 
