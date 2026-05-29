@@ -148,6 +148,15 @@ def read_src_sheet(filepath, sheet_name, header_row, data_start_row):
     gap = data_start_row - header_row - 1
     if gap > 0:
         df = df.iloc[gap:]
+    # 0.0/1.0/NaN 만 있는 float 컬럼 → Python bool 로 변환 (Excel TRUE/FALSE 유지)
+    for col in df.columns:
+        if df[col].dtype == float:
+            unique_vals = set(df[col].dropna().unique())
+            if unique_vals.issubset({0.0, 1.0}):
+                df[col] = df[col].apply(
+                    lambda x: None if (isinstance(x, float) and math.isnan(x)) else bool(x)
+                )
+
     headers = [str(h) if h is not None else "" for h in df.columns]
     rows = []
     for r in df.itertuples(index=False):
