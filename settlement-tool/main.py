@@ -254,9 +254,10 @@ def read_excel_rows(filepath, start_row=2, skip_last=False):
     총합 행 제외.
     """
     import pandas as pd
-    # header=None 으로 읽고 skiprows 로 원하는 행부터 시작
+    ext = str(filepath).lower()
+    engine = "xlrd" if ext.endswith(".xls") else "openpyxl"
     df = pd.read_excel(filepath, header=None, skiprows=start_row - 1,
-                       engine="openpyxl")
+                       engine=engine)
     # 완전 빈 행 제외
     df = df.dropna(how="all")
     # 총합 행 제외
