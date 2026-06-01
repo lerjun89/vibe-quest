@@ -620,6 +620,126 @@ def _to_xml_formula(formula):
     return f
 
 
+def _postprocess_workbook(output_path, template_path,
+                          restore_sheets, formula_overrides, log=None):
+    """
+    ZIP 단일 패스로 세 가지 openpyxl 버그를 한번에 수정:
+    1. UNIQUE/FILTER t="array" 스필 버그
+    2. 구조적 참조 @ 추가 버그 (템플릿 수식으로 복원)
+    3. 지정 셀 수식 강제 주입
+    """
+    import zipfile, re, shutil, os
+
+    DYNAMIC = ('_xlfn.UNIQUE(', '_xlfn._xlws.FILTER(', '_xlfn.SORT(',
+               '_xlfn.SORTBY(', '_xlfn.SEQUENCE(')
+    dyn_pattern = re.compile(r'<f [^>]*t="array"[^>]*>(.*?)</f>', re.DOTALL)
+
+    def fix_dynamic(text):
+        def replacer(m):
+            formula = m.group(1)
+            return f'<f>{formula}</f>' if any(fn in formula for fn in DYNAMIC) else m.group(0)
+        return dyn_pattern.sub(replacer, text)
+
+    def get_sheet_map(zf):
+        wb_xml = zf.read('xl/workbook.xml').decode('utf-8')
+        rels_xml = zf.read('xl/_rels/workbook.xml.rels').decode('utf-8')
+        rid_to_t = {}
+        for m in re.finditer(r'<Relationship\b([^>]+)>', rels_xml):
+            tag = m.group(1)
+            im = re.search(r'\bId="(rId\d+)"', tag)
+            tm = re.search(r'\bTarget="([^"]+)"', tag)
+            if im and tm:
+                rid_to_t[im.group(1)] = tm.group(1)
+        sm = {}
+        for m in re.finditer(r'<sheet\b([^/>]*(?:/>|>))', wb_xml):
+            tag = m.group(1)
+            nm = re.search(r'\bname="([^"]+)"', tag)
+            rm = re.search(r'\br:id="(rId\d+)"', tag)
+            if nm and rm:
+                t = rid_to_t.get(rm.group(1), '')
+                if t:
+                    t = t.lstrip('/')
+                    if not t.startswith('xl/'): t = 'xl/' + t
+                    sm[nm.group(1)] = t
+        return sm
+
+    def replace_cell(text, ref, new_xml):
+        """문자열 스캔으로 셀 교체 (역추적 없음)"""
+        search = f'r="{ref}"'
+        idx = text.find(search)
+        if idx < 0:
+            return text
+        start = text.rfind('<c', 0, idx)
+        end = text.find('</c>', idx)
+        if start >= 0 and end >= 0:
+            return text[:start] + new_xml + text[end + 4:]
+        return text
+
+    # 템플릿에서 수식 셀 추출
+    with zipfile.ZipFile(template_path, 'r') as tz:
+        tsm = get_sheet_map(tz)
+        with zipfile.ZipFile(output_path, 'r') as oz:
+            osm = get_sheet_map(oz)
+        # output xml path → {ref: template cell xml}
+        tmpl_cells = {}
+        for sname in restore_sheets:
+            txf = tsm.get(sname)
+            oxf = osm.get(sname)
+            if not txf or not oxf:
+                if log: log(f"  [수식 복원] '{sname}' 시트 매핑 실패")
+                continue
+            try:
+                text = tz.read(txf).decode('utf-8')
+            except Exception:
+                continue
+            cell_map = {}
+            for m in re.finditer(r'<c\s+r="([A-Z]+\d+)"[^>]*>(.*?)</c>', text, re.DOTALL):
+                if '<f' in m.group(2):
+                    cell_map[m.group(1)] = m.group(0)
+            if cell_map:
+                tmpl_cells[oxf] = cell_map
+                if log: log(f"  [수식 복원] '{sname}': {len(cell_map)}개 복원")
+
+    # 수식 주입 대상 준비
+    with zipfile.ZipFile(output_path, 'r') as oz:
+        osm2 = get_sheet_map(oz)
+    inject = {}  # output xml path → {ref: xml_formula_str}
+    for sname, cell_dict in formula_overrides.items():
+        oxf = osm2.get(sname)
+        if not oxf:
+            continue
+        inject[oxf] = {ref: _to_xml_formula(f) for ref, f in cell_dict.items()}
+
+    # 단일 ZIP 패스로 모든 수정 적용
+    tmp = output_path + '.postfix'
+    shutil.copy2(output_path, tmp)
+    try:
+        with zipfile.ZipFile(tmp, 'r') as zin:
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+                    if item.filename.startswith('xl/worksheets/') and item.filename.endswith('.xml'):
+                        text = data.decode('utf-8')
+                        # 1. 동적 배열 수식 스필 수정
+                        text = fix_dynamic(text)
+                        # 2. 템플릿 수식 복원
+                        if item.filename in tmpl_cells:
+                            for ref, new_cell_xml in tmpl_cells[item.filename].items():
+                                text = replace_cell(text, ref, new_cell_xml)
+                        # 3. 수식 강제 주입
+                        if item.filename in inject:
+                            for ref, xml_f in inject[item.filename].items():
+                                new_cell = f'<c r="{ref}"><f>{xml_f}</f></c>'
+                                text = replace_cell(text, ref, new_cell)
+                                if log: log(f"  [수식 주입] {ref} 완료")
+                        data = text.encode('utf-8')
+                    zout.writestr(item, data)
+    finally:
+        os.remove(tmp)
+    if log:
+        log("  [수식 후처리] 완료")
+
+
 def _apply_formula_overrides(output_path, overrides, log=None):
     """지정된 시트/셀에 수식을 ZIP XML에서 직접 교체"""
     import zipfile, re, shutil, os
@@ -929,15 +1049,12 @@ def run_automation(year, month, src_filepath, template_path, output_path,
             log_func("  [현영(효)] 미첨부 — 건너뜀")
 
         wb.save(output_path)
-        # UNIQUE/FILTER 등 동적 배열 수식 스필 버그 수정
-        _fix_dynamic_array_formulas(output_path, log_func)
-        # 구조적 참조(표7[컬럼])에 @ 추가되는 버그 수정: 템플릿 원본 수식으로 복원
-        _restore_formulas_from_template(
-            template_path, output_path,
-            ["최종수납(효)", "최종증빙(효)", "수납내역(효)", "세계(H)"],
-            log_func)
-        # 지정 셀 수식 강제 주입 (템플릿과 무관하게 정확한 수식 보장)
-        _apply_formula_overrides(output_path, _FORMULA_OVERRIDES, log_func)
+        # ZIP 단일 패스로 모든 수식 버그 수정
+        _postprocess_workbook(
+            output_path, template_path,
+            restore_sheets=["최종수납(효)", "최종증빙(효)", "수납내역(효)", "세계(H)"],
+            formula_overrides=_FORMULA_OVERRIDES,
+            log=log_func)
         log_func(f"\n✅ 완료! → {output_path}")
         done_func(True, output_path)
 
