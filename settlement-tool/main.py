@@ -392,6 +392,46 @@ def expand_tables(ws, last_data_row):
                 tbl.ref = f"{sc}{sr}:{ec}{last_data_row}"
 
 
+def _fix_dynamic_array_formulas(filepath, log=None):
+    """
+    openpyxl 저장 버그 수정: UNIQUE/FILTER 등 동적 배열 수식이
+    t="array" ref="셀" 로 잘못 저장되어 Excel에서 스필되지 않는 문제 해결.
+    저장 후 ZIP XML을 직접 수정해 동적 배열 수식에서 array 속성을 제거.
+    """
+    import zipfile, re, shutil, os
+
+    DYNAMIC = ('_xlfn.UNIQUE(', '_xlfn._xlws.FILTER(', '_xlfn.UNIQUE(',
+               '_xlfn.SORT(', '_xlfn.SORTBY(', '_xlfn.SEQUENCE(')
+
+    pattern = re.compile(r'<f [^>]*t="array"[^>]*>(.*?)</f>', re.DOTALL)
+
+    def replacer(m):
+        formula = m.group(1)
+        if any(fn in formula for fn in DYNAMIC):
+            return f'<f>{formula}</f>'
+        return m.group(0)
+
+    tmp = filepath + '.tmp_fix'
+    shutil.copy2(filepath, tmp)
+    fixed = False
+    try:
+        with zipfile.ZipFile(tmp, 'r') as zin:
+            with zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+                    if item.filename.startswith('xl/worksheets/') and item.filename.endswith('.xml'):
+                        text = data.decode('utf-8')
+                        new_text = pattern.sub(replacer, text)
+                        if new_text != text:
+                            fixed = True
+                        data = new_text.encode('utf-8')
+                    zout.writestr(item, data)
+    finally:
+        os.remove(tmp)
+    if log and fixed:
+        log("  [수식 수정] 동적 배열 수식(UNIQUE/FILTER) 스필 속성 복원 완료")
+
+
 # ──────────────────────────────────────────────────────────────
 # 메인 처리
 # ──────────────────────────────────────────────────────────────
@@ -600,6 +640,8 @@ def run_automation(year, month, src_filepath, template_path, output_path,
             log_func("  [현영(효)] 미첨부 — 건너뜀")
 
         wb.save(output_path)
+        # openpyxl이 UNIQUE/FILTER 등 동적 배열 수식을 레거시 배열 수식으로 저장하는 버그 수정
+        _fix_dynamic_array_formulas(output_path, log_func)
         log_func(f"\n✅ 완료! → {output_path}")
         done_func(True, output_path)
 
