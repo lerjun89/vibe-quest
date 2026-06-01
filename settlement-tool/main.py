@@ -182,18 +182,19 @@ def read_src_sheet(filepath, sheet_name, header_row, data_start_row):
 
 
 def filter_rows_by_month(headers, rows, date_col_names, year, month):
-    """날짜 컬럼 기준으로 대상 월 행만 반환. 총합 행 및 구분선 행 제외."""
-    # 날짜 컬럼 인덱스 찾기
-    date_idx = None
+    """날짜 컬럼 기준으로 대상 월 행만 반환. 총합 행 및 구분선 행 제외.
+    date_col_names 중 여러 개가 발견되면 OR 조건 적용 (하나라도 해당 월이면 포함).
+    """
+    # 모든 매칭 날짜 컬럼 인덱스 수집 (OR 조건)
+    date_indices = []
     for name in date_col_names:
         name_c = name.replace("\n", "").strip()
         for i, h in enumerate(headers):
             h_c = h.replace("\n", "").strip()
             if name_c == h_c or name_c in h_c or h_c in name_c:
-                date_idx = i
+                if i not in date_indices:
+                    date_indices.append(i)
                 break
-        if date_idx is not None:
-            break
 
     result = []
     for row in rows:
@@ -210,12 +211,16 @@ def filter_rows_by_month(headers, rows, date_col_names, year, month):
         )
         if real_vals < 2:
             continue
-        if date_idx is not None and date_idx < len(row):
-            ym = parse_ym(row[date_idx])
-            # 날짜 파싱 불가(구분선 등) → 스킵
-            if ym is None:
-                continue
-            if ym != (year, month):
+        if date_indices:
+            # 날짜 컬럼 중 하나라도 대상 월에 해당하면 포함 (OR)
+            matched = False
+            for date_idx in date_indices:
+                if date_idx < len(row):
+                    ym = parse_ym(row[date_idx])
+                    if ym == (year, month):
+                        matched = True
+                        break
+            if not matched:
                 continue
         result.append(row)
     return result
@@ -244,6 +249,17 @@ def read_attach_rows(filepath, start_row=2, skip_last=False):
                 df[col] = df[col].apply(
                     lambda x: None if (isinstance(x, float) and math.isnan(x)) else bool(x)
                 )
+    # 전화번호 앞자리 0 보존: 9~10자리 정수 중 '1'로 시작하는 컬럼 → 앞에 '0' 추가
+    import pandas as _pd
+    for col in df.columns:
+        if df[col].dtype in ('int64', 'int32'):
+            sample = df[col].dropna()
+            if len(sample) > 0:
+                str_vals = sample.astype(str)
+                if str_vals.str.len().between(9, 10).all() and str_vals.str.startswith('1').all():
+                    df[col] = df[col].apply(
+                        lambda x: '0' + str(int(x)) if _pd.notna(x) else None
+                    )
     rows = [[clean(v) for v in row] for row in df.values.tolist()]
     if skip_last and rows:
         rows = rows[:-1]
@@ -544,7 +560,7 @@ def run_automation(year, month, src_filepath, template_path, output_path,
             log_func(f"\n  [현영(효)] 처리 중...")
             process_attach(wb["현영(효)"], file_현영효,
                            start_row=3, start_col="A", src_start_row=2,
-                           skip_last=True, log=log_func)
+                           skip_last=False, log=log_func)
         else:
             log_func("  [현영(효)] 미첨부 — 건너뜀")
 
