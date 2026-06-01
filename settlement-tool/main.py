@@ -443,51 +443,83 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
     import zipfile, re, shutil, os
 
     def get_sheet_xml_map(zf):
+        """workbook.xml + rels 파싱으로 시트명 → xl/worksheets/sheetN.xml 매핑 반환"""
         wb_xml = zf.read('xl/workbook.xml').decode('utf-8')
         rels_xml = zf.read('xl/_rels/workbook.xml.rels').decode('utf-8')
+        # rels: Id → Target
         rid_to_target = {}
         for m in re.finditer(r'Id="(rId\d+)"[^>]+Target="([^"]+)"', rels_xml):
             rid_to_target[m.group(1)] = m.group(2)
+        # workbook: <sheet ... name="..." ... r:id="rIdN" ...>
+        # 속성 순서가 다를 수 있으므로 각각 별도로 추출
         sheet_map = {}
-        for m in re.finditer(r'<sheet[^>]+name="([^"]+)"[^>]+r:id="(rId\d+)"', wb_xml):
-            name, rid = m.group(1), m.group(2)
+        for m in re.finditer(r'<sheet\b([^/>]*(?:/>|>))', wb_xml):
+            tag = m.group(1)
+            name_m = re.search(r'\bname="([^"]+)"', tag)
+            rid_m  = re.search(r'\br:id="(rId\d+)"', tag)
+            if not name_m or not rid_m:
+                continue
+            name = name_m.group(1)
+            rid  = rid_m.group(1)
             target = rid_to_target.get(rid, '')
-            if target:
-                path = target if target.startswith('xl/') else 'xl/' + target
-                sheet_map[name] = path
+            if not target:
+                continue
+            # Target 이 "worksheets/sheet1.xml" 형태이면 'xl/' 붙이기
+            if not target.startswith('xl/'):
+                target = 'xl/' + target
+            sheet_map[name] = target
         return sheet_map
 
-    # 템플릿에서 수식 셀 추출
+    # 템플릿/출력 모두 독립적으로 열어 매핑 구성
     with zipfile.ZipFile(template_path, 'r') as tz:
         tm = get_sheet_xml_map(tz)
-        with zipfile.ZipFile(output_path, 'r') as oz:
-            om = get_sheet_xml_map(oz)
-
-        tmpl_cells = {}  # output xml path → {cell_ref: full cell xml}
+        # 템플릿에서 수식 셀 내용 추출
+        tmpl_xml = {}   # sheet xml path (template) → xml text
         for sname in sheet_names:
             txf = tm.get(sname)
-            oxf = om.get(sname)
-            if not txf or not oxf:
+            if not txf:
                 if log:
-                    log(f"  [수식 복원] '{sname}' 시트 매핑 실패 (tmpl={txf}, out={oxf})")
+                    log(f"  [수식 복원] 템플릿에서 '{sname}' 시트 찾기 실패. 가용 시트: {list(tm.keys())}")
                 continue
             try:
-                text = tz.read(txf).decode('utf-8')
-            except Exception:
-                continue
-            cell_map = {}
-            for m in re.finditer(r'<c r="([A-Z]+\d+)"([^>]*)>(.*?)</c>', text, re.DOTALL):
-                ref, inner = m.group(1), m.group(3)
-                if '<f' in inner:
-                    cell_map[ref] = m.group(0)
-            if cell_map:
-                tmpl_cells[oxf] = cell_map
+                tmpl_xml[sname] = tz.read(txf).decode('utf-8')
+            except Exception as e:
                 if log:
-                    log(f"  [수식 복원] '{sname}': 수식 셀 {len(cell_map)}개 복원")
+                    log(f"  [수식 복원] 템플릿 '{sname}' 읽기 오류: {e}")
+
+    with zipfile.ZipFile(output_path, 'r') as oz:
+        om = get_sheet_xml_map(oz)
+
+    if not tmpl_xml:
+        if log:
+            log("  [수식 복원] 복원할 수식 없음 (템플릿 시트 없음)")
+        return
+
+    # 시트별 수식 셀 맵 구성: output xml path → {cell_ref: template cell xml}
+    tmpl_cells = {}
+    for sname, text in tmpl_xml.items():
+        oxf = om.get(sname)
+        if not oxf:
+            if log:
+                log(f"  [수식 복원] 출력 파일에서 '{sname}' 시트 찾기 실패. 가용 시트: {list(om.keys())}")
+            continue
+        cell_map = {}
+        # <c r="A1" ...>...</c> 또는 <c r="A1" ... /> 형태 모두 처리
+        for m in re.finditer(r'<c\s+r="([A-Z]+\d+)"([^>]*)>(.*?)</c>', text, re.DOTALL):
+            ref, inner = m.group(1), m.group(3)
+            if '<f' in inner:
+                cell_map[ref] = m.group(0)
+        if cell_map:
+            tmpl_cells[oxf] = cell_map
+            if log:
+                log(f"  [수식 복원] '{sname}' ({oxf}): 수식 셀 {len(cell_map)}개 복원 예정")
+        else:
+            if log:
+                log(f"  [수식 복원] '{sname}': 템플릿에서 수식 셀 없음")
 
     if not tmpl_cells:
         if log:
-            log("  [수식 복원] 복원할 수식 없음")
+            log("  [수식 복원] 복원할 수식 셀 없음")
         return
 
     tmp = output_path + '.frmfix'
