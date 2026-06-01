@@ -446,10 +446,14 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
         """workbook.xml + rels 파싱으로 시트명 → xl/worksheets/sheetN.xml 매핑 반환"""
         wb_xml = zf.read('xl/workbook.xml').decode('utf-8')
         rels_xml = zf.read('xl/_rels/workbook.xml.rels').decode('utf-8')
-        # rels: Id → Target
+        # rels: Id → Target (속성 순서 무관)
         rid_to_target = {}
-        for m in re.finditer(r'Id="(rId\d+)"[^>]+Target="([^"]+)"', rels_xml):
-            rid_to_target[m.group(1)] = m.group(2)
+        for m in re.finditer(r'<Relationship\b([^>]+)>', rels_xml):
+            tag = m.group(1)
+            id_m  = re.search(r'\bId="(rId\d+)"', tag)
+            tgt_m = re.search(r'\bTarget="([^"]+)"', tag)
+            if id_m and tgt_m:
+                rid_to_target[id_m.group(1)] = tgt_m.group(1)
         # workbook: <sheet ... name="..." ... r:id="rIdN" ...>
         # 속성 순서가 다를 수 있으므로 각각 별도로 추출
         sheet_map = {}
@@ -464,7 +468,8 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
             target = rid_to_target.get(rid, '')
             if not target:
                 continue
-            # Target 이 "worksheets/sheet1.xml" 형태이면 'xl/' 붙이기
+            # /xl/... 또는 xl/... 또는 worksheets/... 모두 처리
+            target = target.lstrip('/')
             if not target.startswith('xl/'):
                 target = 'xl/' + target
             sheet_map[name] = target
@@ -619,9 +624,14 @@ def _apply_formula_overrides(output_path, overrides, log=None):
     def get_sheet_xml_map(zf):
         wb_xml = zf.read('xl/workbook.xml').decode('utf-8')
         rels_xml = zf.read('xl/_rels/workbook.xml.rels').decode('utf-8')
+        # rels: Id → Target (속성 순서 무관)
         rid_to_target = {}
-        for m in re.finditer(r'Id="(rId\d+)"[^>]+Target="([^"]+)"', rels_xml):
-            rid_to_target[m.group(1)] = m.group(2)
+        for m in re.finditer(r'<Relationship\b([^>]+)>', rels_xml):
+            tag = m.group(1)
+            id_m  = re.search(r'\bId="(rId\d+)"', tag)
+            tgt_m = re.search(r'\bTarget="([^"]+)"', tag)
+            if id_m and tgt_m:
+                rid_to_target[id_m.group(1)] = tgt_m.group(1)
         sheet_map = {}
         for m in re.finditer(r'<sheet\b([^/>]*(?:/>|>))', wb_xml):
             tag = m.group(1)
@@ -632,6 +642,7 @@ def _apply_formula_overrides(output_path, overrides, log=None):
                 rid  = rid_m.group(1)
                 target = rid_to_target.get(rid, '')
                 if target:
+                    target = target.lstrip('/')
                     if not target.startswith('xl/'):
                         target = 'xl/' + target
                     sheet_map[name] = target
