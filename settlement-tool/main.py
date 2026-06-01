@@ -43,7 +43,7 @@ SRC_SHEET_CONFIG = {
         "header_row":     1,
         "data_start_row": 2,
         "date_cols":      ["매출월", "(수식 자동입력)\n입금일", "입금일"],
-        "require_nonempty": ["총판코드", "코드"],   # 하나라도 있으면 OK, 모두 없으면 제외
+        "require_nonempty": ["총판코드"],   # 이 열에 값 없으면 행 제외
         "dest_start_row": 4,
         "dest_start_col": "D",
         "dest_header_row": 3,
@@ -475,10 +475,21 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
         # 후보 컬럼 인덱스 찾기 (부분일치 포함)
         req_indices = []
         for rn in req_norm:
+            found_idx = None
+            # 1순위: 완전일치
             for si, sn in enumerate(src_norm_h):
-                if rn == sn or rn in sn or sn in rn:
-                    req_indices.append(si)
+                if rn == sn:
+                    found_idx = si
                     break
+            # 2순위: rn이 sn의 부분문자열 (예: "총판코드" in "총판코드(자동)")
+            if found_idx is None:
+                for si, sn in enumerate(src_norm_h):
+                    if rn in sn:
+                        found_idx = si
+                        break
+            if found_idx is not None:
+                req_indices.append(found_idx)
+                log(f"    [총판코드 필터] 기준 열: '{src_headers[found_idx]}' (index {found_idx})")
         if req_indices:
             before = len(filtered)
             filtered = [
@@ -489,6 +500,8 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
                 )
             ]
             log(f"  [{sheet_name}] 총판코드 없는 행 제외: {before - len(filtered)}행 제거 → {len(filtered)}행")
+        else:
+            log(f"  [{sheet_name}] [주의] '총판코드' 열을 찾지 못했습니다. 소스 헤더: {src_headers[:10]}")
 
     if not filtered:
         return
