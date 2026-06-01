@@ -432,6 +432,89 @@ def _fix_dynamic_array_formulas(filepath, log=None):
         log("  [수식 수정] 동적 배열 수식(UNIQUE/FILTER) 스필 속성 복원 완료")
 
 
+def _restore_formulas_from_template(template_path, output_path, sheet_names, log=None):
+    """
+    openpyxl 저장 버그 수정: 구조적 참조(표7[컬럼]) 앞에 @가 추가되는 문제.
+    지정된 시트의 수식 셀을 템플릿 원본으로 복원.
+    """
+    import zipfile, re, shutil, os
+
+    def get_sheet_xml_map(zf):
+        wb_xml = zf.read('xl/workbook.xml').decode('utf-8')
+        names = re.findall(r'<sheet[^>]+name="([^"]+)"', wb_xml)
+        rels_xml = zf.read('xl/_rels/workbook.xml.rels').decode('utf-8')
+        rids = re.findall(r'Id="(rId\d+)"[^/]*/>', rels_xml)
+        targets = re.findall(r'Target="([^"]+)"', rels_xml)
+        rid_to_target = {}
+        for m in re.finditer(r'Id="(rId\d+)"[^>]+Target="([^"]+)"', rels_xml):
+            rid_to_target[m.group(1)] = m.group(2)
+        sheet_map = {}
+        rid_iter = re.finditer(r'<sheet[^>]+name="([^"]+)"[^>]+r:id="(rId\d+)"', wb_xml)
+        for m in rid_iter:
+            name, rid = m.group(1), m.group(2)
+            target = rid_to_target.get(rid, '')
+            if target:
+                path = target if target.startswith('xl/') else 'xl/' + target
+                sheet_map[name] = path
+        return sheet_map
+
+    # Build template formula cell map for target sheets
+    with zipfile.ZipFile(template_path, 'r') as tz:
+        tm = get_sheet_xml_map(tz)
+        with zipfile.ZipFile(output_path, 'r') as oz:
+            om = get_sheet_xml_map(oz)
+
+        tmpl_cells = {}  # output_xml_path -> {cell_ref: full_cell_xml}
+        for sname in sheet_names:
+            txf = tm.get(sname)
+            oxf = om.get(sname)
+            if not txf or not oxf:
+                if log:
+                    log(f"  [수식 복원] '{sname}' 시트를 찾지 못했습니다 (tmpl={txf}, out={oxf})")
+                continue
+            try:
+                text = tz.read(txf).decode('utf-8')
+            except Exception:
+                continue
+            cell_map = {}
+            for m in re.finditer(r'<c r="([A-Z]+\d+)"([^>]*)>(.*?)</c>', text, re.DOTALL):
+                ref, inner = m.group(1), m.group(3)
+                if '<f' in inner:
+                    cell_map[ref] = m.group(0)
+            if cell_map:
+                tmpl_cells[oxf] = cell_map
+                if log:
+                    log(f"  [수식 복원] '{sname}': 수식 셀 {len(cell_map)}개 복원 예정")
+
+    if not tmpl_cells:
+        return
+
+    tmp = output_path + '.frmfix'
+    shutil.copy2(output_path, tmp)
+    try:
+        with zipfile.ZipFile(tmp, 'r') as zin:
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+                    if item.filename in tmpl_cells:
+                        text = data.decode('utf-8')
+                        cell_map = tmpl_cells[item.filename]
+
+                        def restore(m, cm=cell_map):
+                            ref = m.group(1)
+                            return cm[ref] if ref in cm else m.group(0)
+
+                        new_text = re.sub(
+                            r'<c r="([A-Z]+\d+)"[^>]*>.*?</c>',
+                            restore, text, flags=re.DOTALL)
+                        data = new_text.encode('utf-8')
+                    zout.writestr(item, data)
+    finally:
+        os.remove(tmp)
+    if log:
+        log("  [수식 복원] 템플릿 원본 수식으로 복원 완료 (@기호 제거)")
+
+
 # ──────────────────────────────────────────────────────────────
 # 메인 처리
 # ──────────────────────────────────────────────────────────────
@@ -655,6 +738,11 @@ def run_automation(year, month, src_filepath, template_path, output_path,
         wb.save(output_path)
         # openpyxl이 UNIQUE/FILTER 등 동적 배열 수식을 레거시 배열 수식으로 저장하는 버그 수정
         _fix_dynamic_array_formulas(output_path, log_func)
+        # openpyxl이 구조적 참조(표7[컬럼])에 @ 추가하는 버그 수정: 수식 셀을 템플릿 원본으로 복원
+        _restore_formulas_from_template(
+            template_path, output_path,
+            ["최종수납(효)", "최종증빙(효)", "수납내역(효)", "세계(H)"],
+            log_func)
         log_func(f"\n✅ 완료! → {output_path}")
         done_func(True, output_path)
 
