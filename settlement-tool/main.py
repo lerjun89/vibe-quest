@@ -233,10 +233,20 @@ def filter_rows_by_month(headers, rows, date_col_names, year, month):
 def read_attach_rows(filepath, start_row=2, skip_last=False):
     """
     첨부 엑셀 파일을 pandas로 빠르게 읽기.
-    start_row: 1-based (2 = 두 번째 행부터)
+    start_row: 1-based 데이터 시작 행 (start_row-1 행이 헤더로 사용됨)
+    반환: (headers, rows)  headers=[] 이면 헤더 없음
     """
     ext = str(filepath).lower()
     engine = "xlrd" if ext.endswith(".xls") else "openpyxl"
+
+    # 헤더 행 읽기 (data start 바로 위 행)
+    headers = []
+    if start_row >= 2:
+        df_hdr = pd.read_excel(filepath, header=None,
+                               skiprows=start_row - 2, nrows=1, engine=engine)
+        headers = [str(v).strip() if v is not None and str(v) != 'nan' else ""
+                   for v in df_hdr.iloc[0].tolist()]
+
     df = pd.read_excel(filepath, header=None, skiprows=start_row - 1, engine=engine)
     df = df.dropna(how="all")
     # 총합 행 제외
@@ -263,7 +273,7 @@ def read_attach_rows(filepath, start_row=2, skip_last=False):
     rows = [[clean(v) for v in row] for row in df.values.tolist()]
     if skip_last and rows:
         rows = rows[:-1]
-    return rows
+    return headers, rows
 
 
 # ──────────────────────────────────────────────────────────────
@@ -470,16 +480,34 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
 
 
 def process_attach(ws_dest, filepath, start_row, start_col,
-                   src_start_row=2, skip_last=False, log=None):
-    """첨부 파일 → 대상 시트에 기록"""
+                   src_start_row=2, skip_last=False, dest_header_row=None, log=None):
+    """첨부 파일 → 대상 시트에 기록 (헤더 매칭 지원)"""
     sheet_name = ws_dest.title
     start_col_idx = column_index_from_string(start_col)
-    rows = read_attach_rows(filepath, start_row=src_start_row, skip_last=skip_last)
+    src_headers, rows = read_attach_rows(filepath, start_row=src_start_row, skip_last=skip_last)
     if log:
         log(f"  [{sheet_name}] {len(rows)}행")
     if not rows:
         return
-    num_cols = max(len(r) for r in rows)
+
+    # 대상 헤더가 있고 소스 헤더도 있으면 컬럼 매칭
+    _dest_hdr_row = dest_header_row if dest_header_row else (start_row - 1)
+    dest_headers = get_dest_headers(ws_dest, _dest_hdr_row, start_col_idx)
+    if src_headers and dest_headers and any(h for h in src_headers):
+        mapping = match_columns(src_headers, dest_headers)
+        mapped = []
+        for row in rows:
+            new_row = [row[idx] if (idx is not None and idx < len(row)) else None
+                       for idx in mapping]
+            mapped.append(new_row)
+        if log:
+            matched = sum(1 for m in mapping if m is not None)
+            log(f"  [{sheet_name}] 컬럼 매칭: {matched}/{len(dest_headers)}개")
+        rows = mapped
+        num_cols = len(dest_headers)
+    else:
+        num_cols = max(len(r) for r in rows)
+
     clear_data_range(ws_dest, start_row, start_col_idx, num_cols)
     write_rows(ws_dest, rows, start_row, start_col_idx)
     expand_tables(ws_dest, start_row + len(rows) - 1)
@@ -489,13 +517,20 @@ def process_attach(ws_dest, filepath, start_row, start_col,
 
 def process_세계H(ws_dest, filepaths, start_row=6, start_col="J",
                    src_start_row=7, log=None):
-    """세계(H): 여러 파일을 J6 부터 이어서 기록"""
+    """세계(H): 여러 파일을 J6 부터 이어서 기록 (헤더 매칭 적용)"""
     sheet_name = ws_dest.title
     start_col_idx = column_index_from_string(start_col)
+    dest_headers = get_dest_headers(ws_dest, start_row - 1, start_col_idx)
     clear_data_range(ws_dest, start_row, start_col_idx, 50)
     current_row = start_row
     for fp in filepaths:
-        rows = read_attach_rows(fp, start_row=src_start_row)
+        src_headers, rows = read_attach_rows(fp, start_row=src_start_row)
+        if src_headers and dest_headers and any(h for h in src_headers):
+            mapping = match_columns(src_headers, dest_headers)
+            rows = [
+                [row[idx] if (idx is not None and idx < len(row)) else None for idx in mapping]
+                for row in rows
+            ]
         if log:
             log(f"  [{sheet_name}] {Path(fp).name}: {len(rows)}행")
         write_rows(ws_dest, rows, current_row, start_col_idx)
