@@ -710,22 +710,65 @@ def _postprocess_workbook(output_path, template_path,
             continue
         inject[oxf] = {ref: _to_xml_formula(f) for ref, f in cell_dict.items()}
 
+    def replace_cells_bulk(text, cell_map):
+        """단일 스캔으로 여러 셀을 한 번에 교체 (O(n))"""
+        if not cell_map:
+            return text
+        result = []
+        pos = 0
+        i = 0
+        while i < len(text):
+            # <c 태그 찾기
+            c_start = text.find('<c ', i)
+            if c_start < 0:
+                break
+            # r="REF" 속성 읽기
+            r_start = text.find('r="', c_start)
+            if r_start < 0 or r_start > c_start + 200:
+                i = c_start + 3
+                continue
+            r_end = text.find('"', r_start + 3)
+            if r_end < 0:
+                i = c_start + 3
+                continue
+            ref = text[r_start + 3:r_end]
+            if ref not in cell_map:
+                i = c_start + 3
+                continue
+            # </c> 찾기
+            c_end_tag = text.find('</c>', r_end)
+            if c_end_tag < 0:
+                i = c_start + 3
+                continue
+            c_end = c_end_tag + 4
+            result.append(text[pos:c_start])
+            result.append(cell_map[ref])
+            pos = c_end
+            i = c_end
+        result.append(text[pos:])
+        return ''.join(result)
+
     # 단일 ZIP 패스로 모든 수정 적용
+    # 수정 대상 시트 파일만 파악
+    needs_fix = set(tmpl_cells.keys()) | set(inject.keys())
+    # 수식 수정 여부 확인용 (fix_dynamic은 모든 worksheet에 적용)
+
     tmp = output_path + '.postfix'
     shutil.copy2(output_path, tmp)
     try:
         with zipfile.ZipFile(tmp, 'r') as zin:
-            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+            with zipfile.ZipFile(output_path, 'w') as zout:
                 for item in zin.infolist():
                     data = zin.read(item.filename)
-                    if item.filename.startswith('xl/worksheets/') and item.filename.endswith('.xml'):
+                    is_sheet = (item.filename.startswith('xl/worksheets/')
+                                and item.filename.endswith('.xml'))
+                    if is_sheet:
                         text = data.decode('utf-8')
                         # 1. 동적 배열 수식 스필 수정
                         text = fix_dynamic(text)
-                        # 2. 템플릿 수식 복원
+                        # 2. 템플릿 수식 복원 (단일 스캔)
                         if item.filename in tmpl_cells:
-                            for ref, new_cell_xml in tmpl_cells[item.filename].items():
-                                text = replace_cell(text, ref, new_cell_xml)
+                            text = replace_cells_bulk(text, tmpl_cells[item.filename])
                         # 3. 수식 강제 주입
                         if item.filename in inject:
                             for ref, xml_f in inject[item.filename].items():
@@ -733,7 +776,11 @@ def _postprocess_workbook(output_path, template_path,
                                 text = replace_cell(text, ref, new_cell)
                                 if log: log(f"  [수식 주입] {ref} 완료")
                         data = text.encode('utf-8')
-                    zout.writestr(item, data)
+                        # 수정된 시트는 DEFLATED로 저장
+                        zout.writestr(item, data, compress_type=zipfile.ZIP_DEFLATED)
+                    else:
+                        # 나머지 파일은 원본 압축 그대로 (재압축 없음)
+                        zout.writestr(item, data, compress_type=item.compress_type)
     finally:
         os.remove(tmp)
     if log:
