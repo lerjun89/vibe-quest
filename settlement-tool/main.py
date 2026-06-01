@@ -548,6 +548,152 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
         log("  [수식 복원] 템플릿 원본 수식 복원 완료 (@기호 제거)")
 
 
+# 출력 파일의 특정 셀에 수식을 직접 주입 (openpyxl @ 버그 우회, 템플릿과 무관하게 고정)
+_FORMULA_OVERRIDES = {
+    "최종증빙(효)": {
+        "A4": (
+            "=LET("
+            "a,IFERROR("
+              "FILTER(b2g매출내역!F3:G100588,"
+                "(b2g매출내역!Q3:Q100588=TRUE)*"
+                "(b2g매출내역!AB3:AB100588<>\"풀리(총판)\")),"
+              "HSTACK(\"\",\"\")),"
+            "b,IFERROR("
+              "FILTER("
+                "CHOOSE({1,2},'풀리(총판)'!P4:P100000,'풀리(총판)'!O4:O100000),"
+                "'풀리(총판)'!D4:D100000>=EOMONTH($A$1,-1)+1,"
+                "'풀리(총판)'!D4:D100000<EOMONTH($A$1,0)+1),"
+              "HSTACK(\"\",\"\")),"
+            "c,IFERROR("
+              "FILTER(풀리b2b매출내역!B3:C100001,"
+                "풀리b2b매출내역!A3:A100001<>\"\"),"
+              "HSTACK(\"\",\"\")),"
+            "s,VSTACK(a,b,c),"
+            "u,UNIQUE(s),"
+            "IFERROR("
+              "FILTER(u,"
+                "(((INDEX(u,,1)<>\"\")+(INDEX(u,,2)<>\"\"))>0)*"
+                "(INDEX(u,,1)<>TRUE)*(INDEX(u,,2)<>TRUE)*"
+                "(INDEX(u,,1)<>\"TRUE\")*(INDEX(u,,2)<>\"TRUE\")),"
+              "\""
+            "\"))"
+        ),
+    },
+}
+
+# 수식에서 Excel 내부 함수명 접두사 매핑
+_XLFN_MAP = {
+    'FILTER':   '_xlfn._xlws.FILTER',
+    'LET':      '_xlfn.LET',
+    'UNIQUE':   '_xlfn.UNIQUE',
+    'VSTACK':   '_xlfn.VSTACK',
+    'HSTACK':   '_xlfn.HSTACK',
+    'SORT':     '_xlfn.SORT',
+    'SORTBY':   '_xlfn.SORTBY',
+    'SEQUENCE': '_xlfn.SEQUENCE',
+    'XLOOKUP':  '_xlfn.XLOOKUP',
+    'XMATCH':   '_xlfn.XMATCH',
+}
+
+
+def _to_xml_formula(formula):
+    """Excel 수식 문자열 → XML 내 저장 형식 (접두사 추가 + XML 이스케이프)"""
+    import re
+    f = formula.lstrip('=')
+    # 줄바꿈·연속 공백 제거
+    f = re.sub(r'[ \t]*\n[ \t]*', '', f).strip()
+    # 함수 접두사 추가 (앞에 . _ 알파벳이 없는 위치의 함수명만)
+    def _prefix(m):
+        name = m.group(1)
+        return _XLFN_MAP.get(name, name)
+    f = re.sub(r'(?<![._a-zA-Z0-9])([A-Z][A-Z0-9]*)(?=\s*\()', _prefix, f)
+    # XML 이스케이프 (& 먼저)
+    f = f.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    return f
+
+
+def _apply_formula_overrides(output_path, overrides, log=None):
+    """지정된 시트/셀에 수식을 ZIP XML에서 직접 교체"""
+    import zipfile, re, shutil, os
+
+    def get_sheet_xml_map(zf):
+        wb_xml = zf.read('xl/workbook.xml').decode('utf-8')
+        rels_xml = zf.read('xl/_rels/workbook.xml.rels').decode('utf-8')
+        rid_to_target = {}
+        for m in re.finditer(r'Id="(rId\d+)"[^>]+Target="([^"]+)"', rels_xml):
+            rid_to_target[m.group(1)] = m.group(2)
+        sheet_map = {}
+        for m in re.finditer(r'<sheet\b([^/>]*(?:/>|>))', wb_xml):
+            tag = m.group(1)
+            name_m = re.search(r'\bname="([^"]+)"', tag)
+            rid_m  = re.search(r'\br:id="(rId\d+)"', tag)
+            if name_m and rid_m:
+                name = name_m.group(1)
+                rid  = rid_m.group(1)
+                target = rid_to_target.get(rid, '')
+                if target:
+                    if not target.startswith('xl/'):
+                        target = 'xl/' + target
+                    sheet_map[name] = target
+        return sheet_map
+
+    with zipfile.ZipFile(output_path, 'r') as oz:
+        om = get_sheet_xml_map(oz)
+
+    # xml_path → {cell_ref: xml_formula}
+    patches = {}
+    for sname, cell_dict in overrides.items():
+        oxf = om.get(sname)
+        if not oxf:
+            if log:
+                log(f"  [수식 주입] '{sname}' 시트 없음")
+            continue
+        patches[oxf] = {}
+        for ref, formula in cell_dict.items():
+            patches[oxf][ref] = _to_xml_formula(formula)
+
+    if not patches:
+        return
+
+    tmp = output_path + '.foverride'
+    shutil.copy2(output_path, tmp)
+    try:
+        with zipfile.ZipFile(tmp, 'r') as zin:
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+                    if item.filename in patches:
+                        text = data.decode('utf-8')
+                        for cell_ref, xml_f in patches[item.filename].items():
+                            new_cell = f'<c r="{cell_ref}"><f>{xml_f}</f></c>'
+                            # 기존 셀 교체 시도
+                            existing = re.search(
+                                rf'<c\s+r="{re.escape(cell_ref)}"[^>]*>.*?</c>',
+                                text, re.DOTALL)
+                            if existing:
+                                text = text[:existing.start()] + new_cell + text[existing.end():]
+                                if log:
+                                    log(f"  [수식 주입] {sname}!{cell_ref} 수식 교체 완료")
+                            else:
+                                # 해당 행 찾아서 삽입
+                                row_num = re.match(r'[A-Z]+(\d+)', cell_ref).group(1)
+                                row_m = re.search(
+                                    rf'(<row\b[^>]+\br="{row_num}"[^>]*>)(.*?)(</row>)',
+                                    text, re.DOTALL)
+                                if row_m:
+                                    text = (text[:row_m.start(3)] + new_cell
+                                            + text[row_m.start(3):])
+                                    if log:
+                                        log(f"  [수식 주입] {sname}!{cell_ref} 수식 삽입 완료")
+                                else:
+                                    if log:
+                                        log(f"  [수식 주입] {sname}!{cell_ref} 행 없음 — 건너뜀")
+                        data = text.encode('utf-8')
+                    zout.writestr(item, data)
+    finally:
+        os.remove(tmp)
+
+
 # ──────────────────────────────────────────────────────────────
 # 메인 처리
 # ──────────────────────────────────────────────────────────────
@@ -774,6 +920,8 @@ def run_automation(year, month, src_filepath, template_path, output_path,
             template_path, output_path,
             ["최종수납(효)", "최종증빙(효)", "수납내역(효)", "세계(H)"],
             log_func)
+        # 지정 셀 수식 강제 주입 (템플릿과 무관하게 정확한 수식 보장)
+        _apply_formula_overrides(output_path, _FORMULA_OVERRIDES, log_func)
         log_func(f"\n✅ 완료! → {output_path}")
         done_func(True, output_path)
 
