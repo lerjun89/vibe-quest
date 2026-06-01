@@ -43,7 +43,7 @@ SRC_SHEET_CONFIG = {
         "header_row":     1,
         "data_start_row": 2,
         "date_cols":      ["매출월", "(수식 자동입력)\n입금일", "입금일"],
-        "require_nonempty": ["총판코드"],   # 이 열에 값 없으면 행 제외
+        "require_nonempty": ["총판코드"],   # 총판코드 없으면 제외
         "dest_start_row": 4,
         "dest_start_col": "D",
         "dest_header_row": 3,
@@ -392,16 +392,19 @@ def expand_tables(ws, last_data_row):
                 tbl.ref = f"{sc}{sr}:{ec}{last_data_row}"
 
 
+# ──────────────────────────────────────────────────────────────
+# 저장 후 수식 버그 수정 (ZIP XML 직접 수정)
+# ──────────────────────────────────────────────────────────────
+
 def _fix_dynamic_array_formulas(filepath, log=None):
     """
     openpyxl 저장 버그 수정: UNIQUE/FILTER 등 동적 배열 수식이
     t="array" ref="셀" 로 잘못 저장되어 Excel에서 스필되지 않는 문제 해결.
-    저장 후 ZIP XML을 직접 수정해 동적 배열 수식에서 array 속성을 제거.
     """
     import zipfile, re, shutil, os
 
-    DYNAMIC = ('_xlfn.UNIQUE(', '_xlfn._xlws.FILTER(', '_xlfn.UNIQUE(',
-               '_xlfn.SORT(', '_xlfn.SORTBY(', '_xlfn.SEQUENCE(')
+    DYNAMIC = ('_xlfn.UNIQUE(', '_xlfn._xlws.FILTER(', '_xlfn.SORT(',
+               '_xlfn.SORTBY(', '_xlfn.SEQUENCE(')
 
     pattern = re.compile(r'<f [^>]*t="array"[^>]*>(.*?)</f>', re.DOTALL)
 
@@ -434,23 +437,19 @@ def _fix_dynamic_array_formulas(filepath, log=None):
 
 def _restore_formulas_from_template(template_path, output_path, sheet_names, log=None):
     """
-    openpyxl 저장 버그 수정: 구조적 참조(표7[컬럼]) 앞에 @가 추가되는 문제.
+    openpyxl 저장 버그 수정: 구조적 참조(표7[컬럼]) 앞에 @ 가 추가되는 문제.
     지정된 시트의 수식 셀을 템플릿 원본으로 복원.
     """
     import zipfile, re, shutil, os
 
     def get_sheet_xml_map(zf):
         wb_xml = zf.read('xl/workbook.xml').decode('utf-8')
-        names = re.findall(r'<sheet[^>]+name="([^"]+)"', wb_xml)
         rels_xml = zf.read('xl/_rels/workbook.xml.rels').decode('utf-8')
-        rids = re.findall(r'Id="(rId\d+)"[^/]*/>', rels_xml)
-        targets = re.findall(r'Target="([^"]+)"', rels_xml)
         rid_to_target = {}
         for m in re.finditer(r'Id="(rId\d+)"[^>]+Target="([^"]+)"', rels_xml):
             rid_to_target[m.group(1)] = m.group(2)
         sheet_map = {}
-        rid_iter = re.finditer(r'<sheet[^>]+name="([^"]+)"[^>]+r:id="(rId\d+)"', wb_xml)
-        for m in rid_iter:
+        for m in re.finditer(r'<sheet[^>]+name="([^"]+)"[^>]+r:id="(rId\d+)"', wb_xml):
             name, rid = m.group(1), m.group(2)
             target = rid_to_target.get(rid, '')
             if target:
@@ -458,19 +457,19 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
                 sheet_map[name] = path
         return sheet_map
 
-    # Build template formula cell map for target sheets
+    # 템플릿에서 수식 셀 추출
     with zipfile.ZipFile(template_path, 'r') as tz:
         tm = get_sheet_xml_map(tz)
         with zipfile.ZipFile(output_path, 'r') as oz:
             om = get_sheet_xml_map(oz)
 
-        tmpl_cells = {}  # output_xml_path -> {cell_ref: full_cell_xml}
+        tmpl_cells = {}  # output xml path → {cell_ref: full cell xml}
         for sname in sheet_names:
             txf = tm.get(sname)
             oxf = om.get(sname)
             if not txf or not oxf:
                 if log:
-                    log(f"  [수식 복원] '{sname}' 시트를 찾지 못했습니다 (tmpl={txf}, out={oxf})")
+                    log(f"  [수식 복원] '{sname}' 시트 매핑 실패 (tmpl={txf}, out={oxf})")
                 continue
             try:
                 text = tz.read(txf).decode('utf-8')
@@ -484,9 +483,11 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
             if cell_map:
                 tmpl_cells[oxf] = cell_map
                 if log:
-                    log(f"  [수식 복원] '{sname}': 수식 셀 {len(cell_map)}개 복원 예정")
+                    log(f"  [수식 복원] '{sname}': 수식 셀 {len(cell_map)}개 복원")
 
     if not tmpl_cells:
+        if log:
+            log("  [수식 복원] 복원할 수식 없음")
         return
 
     tmp = output_path + '.frmfix'
@@ -512,7 +513,7 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
     finally:
         os.remove(tmp)
     if log:
-        log("  [수식 복원] 템플릿 원본 수식으로 복원 완료 (@기호 제거)")
+        log("  [수식 복원] 템플릿 원본 수식 복원 완료 (@기호 제거)")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -550,24 +551,22 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
     filtered = filter_rows_by_month(src_headers, src_rows, cfg["date_cols"], year, month)
     log(f"  [{sheet_name}] {year}년 {month}월 해당: {len(filtered)}행")
 
-    # 필수 컬럼 값 존재 필터 (예: 총판코드 없는 행 제외)
+    # 총판코드 필터: require_nonempty 에 지정된 컬럼에 값이 있는 행만 허용
     require_cols = cfg.get("require_nonempty", [])
     if require_cols and filtered:
-        req_norm = [_norm(c) for c in require_cols]
         src_norm_h = [_norm(h) for h in src_headers]
-        # 후보 컬럼 인덱스 찾기 (부분일치 포함)
         req_indices = []
-        for rn in req_norm:
-            found_idx = None
+        for rn in [_norm(c) for c in require_cols]:
             # 1순위: 완전일치
+            found_idx = None
             for si, sn in enumerate(src_norm_h):
                 if rn == sn:
                     found_idx = si
                     break
-            # 2순위: rn이 sn의 부분문자열 (예: "총판코드" in "총판코드(자동)")
+            # 2순위: 부분일치
             if found_idx is None:
                 for si, sn in enumerate(src_norm_h):
-                    if rn in sn:
+                    if rn in sn or sn in rn:
                         found_idx = si
                         break
             if found_idx is not None:
@@ -582,9 +581,9 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
                     for idx in req_indices
                 )
             ]
-            log(f"  [{sheet_name}] 총판코드 없는 행 제외: {before - len(filtered)}행 제거 → {len(filtered)}행")
+            log(f"  [{sheet_name}] 총판코드 없는 행 제외: {before - len(filtered)}행 → {len(filtered)}행")
         else:
-            log(f"  [{sheet_name}] [주의] '총판코드' 열을 찾지 못했습니다. 소스 헤더: {src_headers[:10]}")
+            log(f"  [{sheet_name}] [주의] '총판코드' 열을 찾지 못했습니다. 헤더: {src_headers[:10]}")
 
     if not filtered:
         return
@@ -736,9 +735,9 @@ def run_automation(year, month, src_filepath, template_path, output_path,
             log_func("  [현영(효)] 미첨부 — 건너뜀")
 
         wb.save(output_path)
-        # openpyxl이 UNIQUE/FILTER 등 동적 배열 수식을 레거시 배열 수식으로 저장하는 버그 수정
+        # UNIQUE/FILTER 등 동적 배열 수식 스필 버그 수정
         _fix_dynamic_array_formulas(output_path, log_func)
-        # openpyxl이 구조적 참조(표7[컬럼])에 @ 추가하는 버그 수정: 수식 셀을 템플릿 원본으로 복원
+        # 구조적 참조(표7[컬럼])에 @ 추가되는 버그 수정: 템플릿 원본 수식으로 복원
         _restore_formulas_from_template(
             template_path, output_path,
             ["최종수납(효)", "최종증빙(효)", "수납내역(효)", "세계(H)"],
