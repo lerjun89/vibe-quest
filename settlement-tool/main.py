@@ -43,6 +43,7 @@ SRC_SHEET_CONFIG = {
         "header_row":     1,
         "data_start_row": 2,
         "date_cols":      ["매출월", "(수식 자동입력)\n입금일", "입금일"],
+        "require_nonempty": ["총판코드", "코드"],   # 하나라도 있으면 OK, 모두 없으면 제외
         "dest_start_row": 4,
         "dest_start_col": "D",
         "dest_header_row": 3,
@@ -132,7 +133,12 @@ def is_total_row(row):
 
 
 def is_formula(cell):
-    return cell.value is not None and str(cell.value).startswith("=")
+    # ArrayFormula 객체도 수식 셀로 처리 (openpyxl이 ArrayFormula 타입 반환)
+    if cell.value is None:
+        return False
+    if hasattr(cell.value, 'text'):   # ArrayFormula
+        return True
+    return str(cell.value).startswith("=")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -394,6 +400,29 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
     # 월 필터
     filtered = filter_rows_by_month(src_headers, src_rows, cfg["date_cols"], year, month)
     log(f"  [{sheet_name}] {year}년 {month}월 해당: {len(filtered)}행")
+
+    # 필수 컬럼 값 존재 필터 (예: 총판코드 없는 행 제외)
+    require_cols = cfg.get("require_nonempty", [])
+    if require_cols and filtered:
+        req_norm = [_norm(c) for c in require_cols]
+        src_norm_h = [_norm(h) for h in src_headers]
+        # 후보 컬럼 인덱스 찾기 (부분일치 포함)
+        req_indices = []
+        for rn in req_norm:
+            for si, sn in enumerate(src_norm_h):
+                if rn == sn or rn in sn or sn in rn:
+                    req_indices.append(si)
+                    break
+        if req_indices:
+            before = len(filtered)
+            filtered = [
+                row for row in filtered
+                if any(
+                    idx < len(row) and row[idx] is not None and str(row[idx]).strip() not in ('', '-')
+                    for idx in req_indices
+                )
+            ]
+            log(f"  [{sheet_name}] 총판코드 없는 행 제외: {before - len(filtered)}행 제거 → {len(filtered)}행")
 
     if not filtered:
         return
