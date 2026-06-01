@@ -537,14 +537,17 @@ def _restore_formulas_from_template(template_path, output_path, sheet_names, log
                     if item.filename in tmpl_cells:
                         text = data.decode('utf-8')
                         cell_map = tmpl_cells[item.filename]
-
-                        def restore(m, cm=cell_map):
-                            ref = m.group(1)
-                            return cm[ref] if ref in cm else m.group(0)
-
-                        new_text = re.sub(
-                            r'<c r="([A-Z]+\d+)"[^>]*>.*?</c>',
-                            restore, text, flags=re.DOTALL)
+                        # 정규식 역추적 방지: 셀별로 문자열 스캔으로 교체
+                        for ref, new_cell_xml in cell_map.items():
+                            search = f'r="{ref}"'
+                            idx = text.find(search)
+                            if idx < 0:
+                                continue
+                            start = text.rfind('<c', 0, idx)
+                            end = text.find('</c>', idx)
+                            if start >= 0 and end >= 0:
+                                text = text[:start] + new_cell_xml + text[end + 4:]
+                        new_text = text
                         data = new_text.encode('utf-8')
                     zout.writestr(item, data)
     finally:
@@ -677,14 +680,16 @@ def _apply_formula_overrides(output_path, overrides, log=None):
                         text = data.decode('utf-8')
                         for cell_ref, xml_f in patches[item.filename].items():
                             new_cell = f'<c r="{cell_ref}"><f>{xml_f}</f></c>'
-                            # 기존 셀 교체 시도
-                            existing = re.search(
-                                rf'<c\s+r="{re.escape(cell_ref)}"[^>]*>.*?</c>',
-                                text, re.DOTALL)
-                            if existing:
-                                text = text[:existing.start()] + new_cell + text[existing.end():]
-                                if log:
-                                    log(f"  [수식 주입] {sname}!{cell_ref} 수식 교체 완료")
+                            # 기존 셀 교체 (문자열 스캔, 역추적 없음)
+                            search = f'r="{cell_ref}"'
+                            idx = text.find(search)
+                            if idx >= 0:
+                                start = text.rfind('<c', 0, idx)
+                                end = text.find('</c>', idx)
+                                if start >= 0 and end >= 0:
+                                    text = text[:start] + new_cell + text[end + 4:]
+                                    if log:
+                                        log(f"  [수식 주입] {sname}!{cell_ref} 수식 교체 완료")
                             else:
                                 # 해당 행 찾아서 삽입
                                 row_num = re.match(r'[A-Z]+(\d+)', cell_ref).group(1)
@@ -1043,7 +1048,7 @@ class App(tk.Tk):
         f = tk.LabelFrame(self, text="처리 로그", font=("맑은 고딕", 10, "bold"))
         f.pack(padx=10, pady=4, fill="both", expand=True)
         self.log_area = scrolledtext.ScrolledText(
-            f, height=12, state="disabled", font=("Consolas", 9))
+            f, height=12, state="disabled", font=("맑은 고딕", 9))
         self.log_area.pack(fill="both", expand=True, padx=4, pady=4)
 
     def _file_row(self, parent, var, cmd):
