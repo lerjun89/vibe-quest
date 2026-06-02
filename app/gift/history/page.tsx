@@ -18,7 +18,8 @@ function timeAgo(ts: number) {
 export default function HistoryPage() {
   const router = useRouter()
   const rooms = useGiftStore((s) => s.rooms)
-  const currentNickname = useGiftStore((s) => s.currentNickname)
+  const getCurrentUser = useGiftStore((s) => s.getCurrentUser)
+  const currentNickname = getCurrentUser()?.nickname ?? ''
 
   const allContributions = Object.values(rooms).flatMap((room) =>
     room.contributions

@@ -39,14 +39,18 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const router = useRouter()
   const room = useGiftStore((s) => s.rooms[roomId])
   const addContribution = useGiftStore((s) => s.addContribution)
-  const currentNickname = useGiftStore((s) => s.currentNickname)
-  const setNickname = useGiftStore((s) => s.setNickname)
+  const getCurrentUser = useGiftStore((s) => s.getCurrentUser)
 
-  const [step, setStep] = useState<FlowStep>(currentNickname ? 'view' : 'enter')
-  const [nickname, setNicknameLocal] = useState(currentNickname)
+  const user = getCurrentUser()
+  const nickname = user?.nickname ?? ''
+
+  const [step, setStep] = useState<FlowStep>(user ? 'view' : 'enter')
+  const [guestNickname, setGuestNickname] = useState('')
   const [selectedPieces, setSelectedPieces] = useState<string[]>([])
   const [cardMessage, setCardMessage] = useState('')
   const [cardEmoji, setCardEmoji] = useState('🎂')
+
+  const displayNickname = nickname || guestNickname
 
   if (!room) {
     return (
@@ -69,8 +73,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const funnyTitle = getFunnyTitle(room.completionItemId, room.pieces, room.contributions)
 
   function handleEnter() {
-    if (!nickname.trim()) return
-    setNickname(nickname)
+    if (!displayNickname.trim()) return
     setStep('view')
   }
 
@@ -92,7 +95,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
       const piece = room.pieces.find((p) => p.id === pieceId)!
       addContribution(roomId, {
         id: Math.random().toString(36).substring(2),
-        participantNickname: nickname,
+        participantNickname: displayNickname,
         pieceId,
         pieceName: piece.name,
         pieceEmoji: piece.emoji,
@@ -119,16 +122,16 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 <div className="bg-white rounded-2xl p-6 shadow-sm w-full">
                   <label className="text-sm text-[#444] mb-1 block">닉네임을 입력해주세요</label>
                   <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300 mb-4"
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-[#111] text-sm focus:outline-none focus:border-pink-300 mb-4"
                     placeholder="예: 민지"
-                    value={nickname}
-                    onChange={(e) => setNicknameLocal(e.target.value)}
+                    value={guestNickname}
+                    onChange={(e) => setGuestNickname(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleEnter()}
                   />
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={handleEnter}
-                    disabled={!nickname.trim()}
+                    disabled={!guestNickname.trim()}
                     className="w-full bg-[#d63384] text-white font-bold py-4 rounded-2xl disabled:opacity-40"
                   >
                     입장하기 →
@@ -282,7 +285,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                   <div className="text-center mt-2">
                     <p className="text-4xl">{cardEmoji}</p>
                     <p className="text-sm text-[#555] mt-2">{cardMessage || '메시지를 입력해주세요...'}</p>
-                    <p className="text-xs text-[#555] mt-2">from. {nickname}</p>
+                    <p className="text-xs text-[#555] mt-2">from. {displayNickname}</p>
                   </div>
                 </div>
                 <motion.button
@@ -349,7 +352,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 </motion.div>
                 <h2 className="text-2xl font-bold text-[#d63384] mb-2">선물 조각을 보냈어요!</h2>
                 <p className="text-[#444] mb-2">{room.hostNickname}님이 확인하면 조각이 추가돼요</p>
-                <p className="text-[#555] text-sm mb-8">from. {nickname}</p>
+                <p className="text-[#555] text-sm mb-8">from. {displayNickname}</p>
                 <div className="flex gap-2 flex-wrap justify-center mb-6">
                   {selectedPieces.map((pid, i) => {
                     const piece = room.pieces.find((p) => p.id === pid)!

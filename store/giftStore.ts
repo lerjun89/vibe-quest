@@ -47,8 +47,9 @@ export interface FundingRoom {
   birthdayDate: string
 }
 
-export interface UserProfile {
-  id: string
+export interface UserAccount {
+  userId: string
+  password: string
   nickname: string
   emoji: string
   createdAt: number
@@ -56,40 +57,56 @@ export interface UserProfile {
 
 interface GiftStore {
   rooms: Record<string, FundingRoom>
-  currentUser: UserProfile | null
-  historyContributions: Contribution[]
+  accounts: Record<string, UserAccount>   // userId → account
+  currentUserId: string | null
+
+  // auth
+  signup: (userId: string, password: string, nickname: string, emoji: string) => { ok: boolean; error?: string }
+  login: (userId: string, password: string) => { ok: boolean; error?: string }
+  logout: () => void
+  getCurrentUser: () => UserAccount | null
+
+  // rooms
   createRoom: (room: FundingRoom) => void
   addContribution: (roomId: string, contribution: Contribution) => void
   approveContribution: (roomId: string, contributionId: string) => void
   closeRoom: (roomId: string) => void
-  signUp: (nickname: string, emoji: string) => UserProfile
-  signOut: () => void
   getRoom: (roomId: string) => FundingRoom | undefined
-  // legacy
-  currentNickname: string
-  setNickname: (nickname: string) => void
 }
 
 export const useGiftStore = create<GiftStore>()(
   persist(
     (set, get) => ({
       rooms: {},
-      currentUser: null,
-      currentNickname: '',
-      historyContributions: [],
+      accounts: {},
+      currentUserId: null,
 
-      signUp: (nickname, emoji) => {
-        const user: UserProfile = {
-          id: Math.random().toString(36).substring(2, 10),
-          nickname,
-          emoji,
-          createdAt: Date.now(),
-        }
-        set({ currentUser: user, currentNickname: nickname })
-        return user
+      signup: (userId, password, nickname, emoji) => {
+        const { accounts } = get()
+        if (!userId.trim() || userId.length < 3) return { ok: false, error: '아이디는 3자 이상이어야 해요' }
+        if (!password || password.length < 4) return { ok: false, error: '비밀번호는 4자 이상이어야 해요' }
+        if (!nickname.trim()) return { ok: false, error: '닉네임을 입력해주세요' }
+        if (accounts[userId]) return { ok: false, error: '이미 사용 중인 아이디예요' }
+        const account: UserAccount = { userId, password, nickname, emoji, createdAt: Date.now() }
+        set((s) => ({ accounts: { ...s.accounts, [userId]: account }, currentUserId: userId }))
+        return { ok: true }
       },
 
-      signOut: () => set({ currentUser: null, currentNickname: '' }),
+      login: (userId, password) => {
+        const { accounts } = get()
+        const account = accounts[userId]
+        if (!account) return { ok: false, error: '존재하지 않는 아이디예요' }
+        if (account.password !== password) return { ok: false, error: '비밀번호가 틀렸어요' }
+        set({ currentUserId: userId })
+        return { ok: true }
+      },
+
+      logout: () => set({ currentUserId: null }),
+
+      getCurrentUser: () => {
+        const { accounts, currentUserId } = get()
+        return currentUserId ? (accounts[currentUserId] ?? null) : null
+      },
 
       createRoom: (room) =>
         set((s) => ({ rooms: { ...s.rooms, [room.id]: room } })),
@@ -101,10 +118,7 @@ export const useGiftStore = create<GiftStore>()(
           return {
             rooms: {
               ...s.rooms,
-              [roomId]: {
-                ...room,
-                contributions: [...room.contributions, contribution],
-              },
+              [roomId]: { ...room, contributions: [...room.contributions, contribution] },
             },
           }
         }),
@@ -130,18 +144,12 @@ export const useGiftStore = create<GiftStore>()(
         set((s) => {
           const room = s.rooms[roomId]
           if (!room) return s
-          return {
-            rooms: {
-              ...s.rooms,
-              [roomId]: { ...room, status: 'closed' },
-            },
-          }
+          return { rooms: { ...s.rooms, [roomId]: { ...room, status: 'closed' } } }
         }),
 
-      setNickname: (nickname) => set({ currentNickname: nickname }),
       getRoom: (roomId) => get().rooms[roomId],
     }),
-    { name: 'gift-store' }
+    { name: 'gift-store-v2' }
   )
 )
 
@@ -158,7 +166,7 @@ export const COMPLETION_ITEMS: CompletionItem[] = [
       { id: 'wrap', name: '포장지', emoji: '🌿' },
     ],
     defaultTitle: '꽃다발',
-    funnyTitles: ['장미 폭탄 꽃다발', '무한 장미 폭발', '향기 테러 꽃다발', '꽃밭 강탈 세트'],
+    funnyTitles: ['장미 폭탄 꽃다발', '무한 장미 폭발', '향기 테러 꽃다발'],
   },
   {
     id: 'jewelry',
@@ -172,7 +180,7 @@ export const COMPLETION_ITEMS: CompletionItem[] = [
       { id: 'gold', name: '황금', emoji: '✨' },
     ],
     defaultTitle: '보석함',
-    funnyTitles: ['황금 보석 강탈함', '빛나는 혼돈 세트', '부자 전쟁 선물함'],
+    funnyTitles: ['황금 보석 강탈함', '빛나는 혼돈 세트'],
   },
   {
     id: 'cake',
@@ -186,7 +194,7 @@ export const COMPLETION_ITEMS: CompletionItem[] = [
       { id: 'candle', name: '촛불', emoji: '🕯️' },
     ],
     defaultTitle: '케이크',
-    funnyTitles: ['크림 테러 케이크', '딸기 폭탄 케이크', '혼돈의 촛불 케이크'],
+    funnyTitles: ['크림 테러 케이크', '딸기 폭탄 케이크'],
   },
   {
     id: 'bag',
@@ -200,7 +208,7 @@ export const COMPLETION_ITEMS: CompletionItem[] = [
       { id: 'sticker', name: '스티커', emoji: '⭐' },
     ],
     defaultTitle: '여행가방',
-    funnyTitles: ['스티커 폭탄 가방', '자물쇠 감시 캐리어', '떠돌이 여행 세트'],
+    funnyTitles: ['스티커 폭탄 가방', '자물쇠 감시 캐리어'],
   },
   {
     id: 'bear',
@@ -214,6 +222,6 @@ export const COMPLETION_ITEMS: CompletionItem[] = [
       { id: 'bow', name: '리본', emoji: '🎀' },
     ],
     defaultTitle: '곰인형',
-    funnyTitles: ['감시곰', '눈이 너무 많은 곰', '팔 없는 공포곰', '혼돈의 리본곰'],
+    funnyTitles: ['감시곰', '눈이 너무 많은 곰', '혼돈의 리본곰'],
   },
 ]
