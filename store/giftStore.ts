@@ -47,24 +47,49 @@ export interface FundingRoom {
   birthdayDate: string
 }
 
+export interface UserProfile {
+  id: string
+  nickname: string
+  emoji: string
+  createdAt: number
+}
+
 interface GiftStore {
   rooms: Record<string, FundingRoom>
-  currentNickname: string
+  currentUser: UserProfile | null
   historyContributions: Contribution[]
   createRoom: (room: FundingRoom) => void
   addContribution: (roomId: string, contribution: Contribution) => void
   approveContribution: (roomId: string, contributionId: string) => void
   closeRoom: (roomId: string) => void
-  setNickname: (nickname: string) => void
+  signUp: (nickname: string, emoji: string) => UserProfile
+  signOut: () => void
   getRoom: (roomId: string) => FundingRoom | undefined
+  // legacy
+  currentNickname: string
+  setNickname: (nickname: string) => void
 }
 
 export const useGiftStore = create<GiftStore>()(
   persist(
     (set, get) => ({
       rooms: {},
+      currentUser: null,
       currentNickname: '',
       historyContributions: [],
+
+      signUp: (nickname, emoji) => {
+        const user: UserProfile = {
+          id: Math.random().toString(36).substring(2, 10),
+          nickname,
+          emoji,
+          createdAt: Date.now(),
+        }
+        set({ currentUser: user, currentNickname: nickname })
+        return user
+      },
+
+      signOut: () => set({ currentUser: null, currentNickname: '' }),
 
       createRoom: (room) =>
         set((s) => ({ rooms: { ...s.rooms, [room.id]: room } })),

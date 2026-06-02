@@ -97,6 +97,34 @@ body {
   transition: background 0.25s ease, color 0.25s ease;
 }
 
+/* ── 선물조각 라이트모드 강제 오버라이드 ──────── */
+.gift-root,
+.gift-root * {
+  color: inherit;
+}
+.gift-root {
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+.gift-root p,
+.gift-root span,
+.gift-root label,
+.gift-root h1,
+.gift-root h2,
+.gift-root h3,
+.gift-root a {
+  color: inherit;
+}
+.gift-root input,
+.gift-root textarea {
+  background: #ffffff;
+  color: #111111;
+}
+.gift-root input::placeholder,
+.gift-root textarea::placeholder {
+  color: #aaaaaa;
+}
+
 /* CRT 스캔라인 — 다크 모드에서만 */
 [data-theme="dark"] body::before,
 :root body::before {

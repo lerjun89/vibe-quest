@@ -21,7 +21,7 @@ export default function JoinPage() {
           <h1 className="text-xl font-bold text-[#d63384]">🔗 링크로 참여하기</h1>
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <label className="text-sm text-[#888] mb-1 block">펀딩 링크 또는 방 코드를 입력하세요</label>
+          <label className="text-sm text-[#444] mb-1 block">펀딩 링크 또는 방 코드를 입력하세요</label>
           <input
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300 mb-4"
             placeholder="예: abc12345 또는 https://.../gift/abc12345"

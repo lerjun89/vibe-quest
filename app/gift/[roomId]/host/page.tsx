@@ -34,7 +34,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
       <div className="min-h-screen bg-gradient-to-br from-[#fff0f5] to-[#fce4ec] flex items-center justify-center p-4">
         <div className="text-center">
           <div className="text-5xl mb-4">😢</div>
-          <p className="text-[#888]">펀딩방을 찾을 수 없어요</p>
+          <p className="text-[#444]">펀딩방을 찾을 수 없어요</p>
           <button onClick={() => router.push('/gift')} className="mt-4 text-[#d63384] underline">홈으로</button>
         </div>
       </div>
@@ -74,11 +74,11 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
             <div className="flex-1">
               <p className="font-bold text-[#333]">{room.giftName}</p>
               <p className="text-[#d63384] font-semibold text-sm">{formatPrice(room.giftPrice)}</p>
-              <p className="text-xs text-[#aaa] mt-1">생일 {room.birthdayDate} ({getDday(room.birthdayDate)})</p>
+              <p className="text-xs text-[#555] mt-1">생일 {room.birthdayDate} ({getDday(room.birthdayDate)})</p>
             </div>
           </div>
           <div className="mt-4">
-            <div className="flex justify-between text-sm text-[#888] mb-1">
+            <div className="flex justify-between text-sm text-[#444] mb-1">
               <span>모인 금액</span>
               <span className="font-bold text-[#d63384]">{formatPrice(totalAmount)}</span>
             </div>
@@ -89,12 +89,12 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
                 animate={{ width: `${completionPercent}%` }}
               />
             </div>
-            <p className="text-xs text-[#aaa] mt-1">{approved.length}개 조각 · {completionPercent}% 완성</p>
+            <p className="text-xs text-[#555] mt-1">{approved.length}개 조각 · {completionPercent}% 완성</p>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
-          <p className="text-xs text-[#888] mb-2">조각 현황</p>
+          <p className="text-xs text-[#444] mb-2">조각 현황</p>
           <div className="flex flex-wrap gap-3">
             {item.pieces.map((piece) => {
               const count = pieceCounts[piece.id] ?? 0
@@ -103,7 +103,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
                   <div className={`text-2xl p-2 rounded-xl ${count > 0 ? 'bg-pink-100' : 'bg-gray-100 opacity-30'}`}>
                     {piece.emoji}
                   </div>
-                  <span className="text-xs text-[#888]">{piece.name}</span>
+                  <span className="text-xs text-[#444]">{piece.name}</span>
                   {count > 0 && <span className="text-xs text-[#d63384] font-bold">×{count}</span>}
                 </div>
               )
@@ -112,7 +112,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
-          <p className="text-xs text-[#888] mb-2">공유 링크</p>
+          <p className="text-xs text-[#444] mb-2">공유 링크</p>
           <div className="flex gap-2">
             <code className="flex-1 text-xs bg-pink-50 text-[#d63384] px-3 py-2 rounded-xl truncate">
               /gift/{roomId}
@@ -132,7 +132,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === tab ? 'bg-[#d63384] text-white' : 'bg-white text-[#888]'
+                activeTab === tab ? 'bg-[#d63384] text-white' : 'bg-white text-[#444]'
               }`}
             >
               {tab === 'overview' ? '전체' : tab === 'pending' ? `대기 ${pending.length}` : `승인 ${approved.length}`}
@@ -144,7 +144,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
           {activeTab === 'overview' && (
             <motion.div key="overview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {room.contributions.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#aaa]">
+                <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#555]">
                   <p className="text-3xl mb-2">💌</p>
                   <p>아직 참여자가 없어요</p>
                   <p className="text-xs mt-1">친구들에게 링크를 공유해보세요</p>
@@ -167,7 +167,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
           {activeTab === 'pending' && (
             <motion.div key="pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {pending.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#aaa]">
+                <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#555]">
                   <p className="text-3xl mb-2">✅</p>
                   <p>대기 중인 입금이 없어요</p>
                 </div>
@@ -189,7 +189,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
           {activeTab === 'approved' && (
             <motion.div key="approved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {approved.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#aaa]">
+                <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#555]">
                   <p className="text-3xl mb-2">🎁</p>
                   <p>아직 승인된 조각이 없어요</p>
                 </div>
@@ -210,7 +210,7 @@ export default function HostPage({ params }: { params: Promise<{ roomId: string 
             onClick={() => {
               if (confirm('펀딩을 마감하시겠어요?')) closeRoom(roomId)
             }}
-            className="w-full mt-6 bg-gray-100 text-[#888] font-semibold py-4 rounded-2xl"
+            className="w-full mt-6 bg-gray-100 text-[#444] font-semibold py-4 rounded-2xl"
           >
             🔒 펀딩 마감하기
           </motion.button>
@@ -243,7 +243,7 @@ function ContributionCard({
           <span className="text-xl">{contribution.pieceEmoji}</span>
           <div>
             <p className="font-semibold text-[#333] text-sm">{contribution.participantNickname}</p>
-            <p className="text-xs text-[#888]">{contribution.pieceName} · {contribution.amount.toLocaleString()}원</p>
+            <p className="text-xs text-[#444]">{contribution.pieceName} · {contribution.amount.toLocaleString()}원</p>
           </div>
         </div>
         <span className={`text-xs font-bold px-2 py-1 rounded-full ${

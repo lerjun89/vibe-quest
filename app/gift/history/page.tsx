@@ -46,12 +46,12 @@ export default function HistoryPage() {
         {!currentNickname && (
           <div className="bg-white rounded-2xl p-6 shadow-sm text-center mb-4">
             <p className="text-3xl mb-2">👤</p>
-            <p className="text-[#888]">펀딩에 참여하면 히스토리가 쌓여요</p>
+            <p className="text-[#444]">펀딩에 참여하면 히스토리가 쌓여요</p>
           </div>
         )}
 
         {allContributions.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#aaa]">
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-[#555]">
             <p className="text-3xl mb-2">💌</p>
             <p>아직 선물 기록이 없어요</p>
             <p className="text-xs mt-1">펀딩에 참여하면 여기에 기록이 남아요</p>
@@ -75,7 +75,7 @@ export default function HistoryPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xl">{c.pieceEmoji}</span>
                       <div>
-                        <p className="text-xs text-[#888]">
+                        <p className="text-xs text-[#444]">
                           {isSent ? `→ ${c.hostNickname}에게` : `← ${c.participantNickname}에게서`}
                         </p>
                         <p className="text-sm font-semibold text-[#333]">{c.pieceName}</p>
@@ -87,8 +87,8 @@ export default function HistoryPage() {
                       </div>
                     )}
                     <div className="flex justify-between items-center mt-2">
-                      <p className="text-xs text-[#aaa]">{item?.emoji} {c.giftName}</p>
-                      <p className="text-xs text-[#aaa]">{timeAgo(c.createdAt)}</p>
+                      <p className="text-xs text-[#555]">{item?.emoji} {c.giftName}</p>
+                      <p className="text-xs text-[#555]">{timeAgo(c.createdAt)}</p>
                     </div>
                   </div>
                 </motion.div>

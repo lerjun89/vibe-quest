@@ -103,7 +103,7 @@ export default function CreatePage() {
               <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
                 <h2 className="font-bold text-[#333] text-lg">선물 정보 입력</h2>
                 <div>
-                  <label className="text-sm text-[#888] mb-1 block">내 닉네임</label>
+                  <label className="text-sm text-[#444] mb-1 block">내 닉네임</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300"
                     placeholder="예: 지수"
@@ -112,7 +112,7 @@ export default function CreatePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-[#888] mb-1 block">선물 링크 (쇼핑몰 URL)</label>
+                  <label className="text-sm text-[#444] mb-1 block">선물 링크 (쇼핑몰 URL)</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300"
                     placeholder="https://..."
@@ -121,7 +121,7 @@ export default function CreatePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-[#888] mb-1 block">상품명</label>
+                  <label className="text-sm text-[#444] mb-1 block">상품명</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300"
                     placeholder="예: 에어팟 프로 2세대"
@@ -130,7 +130,7 @@ export default function CreatePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-[#888] mb-1 block">목표 금액 (원)</label>
+                  <label className="text-sm text-[#444] mb-1 block">목표 금액 (원)</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300"
                     placeholder="예: 350000"
@@ -139,7 +139,7 @@ export default function CreatePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-[#888] mb-1 block">생일 날짜</label>
+                  <label className="text-sm text-[#444] mb-1 block">생일 날짜</label>
                   <input
                     type="date"
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300"
@@ -163,7 +163,7 @@ export default function CreatePage() {
             <motion.div key="item" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="bg-white rounded-2xl p-6 shadow-sm">
                 <h2 className="font-bold text-[#333] text-lg mb-4">완성품 선택</h2>
-                <p className="text-[#888] text-sm mb-4">조각이 모여 완성될 아이템을 선택하세요</p>
+                <p className="text-[#444] text-sm mb-4">조각이 모여 완성될 아이템을 선택하세요</p>
                 <div className="grid grid-cols-1 gap-3">
                   {COMPLETION_ITEMS.map((item) => (
                     <motion.button
@@ -175,7 +175,7 @@ export default function CreatePage() {
                       <span className="text-3xl">{item.emoji}</span>
                       <div>
                         <p className="font-semibold text-[#333]">{item.name}</p>
-                        <p className="text-xs text-[#aaa]">
+                        <p className="text-xs text-[#555]">
                           {item.pieces.map((p) => p.emoji).join(' ')}
                         </p>
                       </div>
@@ -190,7 +190,7 @@ export default function CreatePage() {
             <motion.div key="pieces" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="bg-white rounded-2xl p-6 shadow-sm">
                 <h2 className="font-bold text-[#333] text-lg mb-1">조각별 금액 설정</h2>
-                <p className="text-[#888] text-sm mb-4">
+                <p className="text-[#444] text-sm mb-4">
                   {selectedItem.emoji} {selectedItem.name} · 각 조각의 가격을 설정하세요
                 </p>
                 <div className="space-y-4">
@@ -225,7 +225,7 @@ export default function CreatePage() {
                               if (v) setPiecePrice(piece.id, Number(v))
                             }}
                           />
-                          <span className="text-sm text-[#888]">원</span>
+                          <span className="text-sm text-[#444]">원</span>
                         </div>
                       </div>
                       <p className="text-xs text-pink-500 mt-2 font-medium">
@@ -249,9 +249,9 @@ export default function CreatePage() {
             <motion.div key="account" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="bg-white rounded-2xl p-6 shadow-sm">
                 <h2 className="font-bold text-[#333] text-lg mb-2">계좌번호 입력</h2>
-                <p className="text-[#888] text-sm mb-4">친구들이 이체할 계좌번호를 입력해주세요</p>
+                <p className="text-[#444] text-sm mb-4">친구들이 이체할 계좌번호를 입력해주세요</p>
                 <div>
-                  <label className="text-sm text-[#888] mb-1 block">은행명 + 계좌번호</label>
+                  <label className="text-sm text-[#444] mb-1 block">은행명 + 계좌번호</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-300"
                     placeholder="예: 카카오뱅크 3333-01-1234567"
@@ -279,10 +279,10 @@ export default function CreatePage() {
               <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
                 <div className="text-5xl mb-4">🎉</div>
                 <h2 className="font-bold text-[#333] text-xl mb-2">펀딩방이 생성됐어요!</h2>
-                <p className="text-[#888] text-sm mb-6">아래 링크를 친구들에게 공유하세요</p>
+                <p className="text-[#444] text-sm mb-6">아래 링크를 친구들에게 공유하세요</p>
 
                 <div className="bg-pink-50 border border-pink-200 rounded-xl p-4 mb-4">
-                  <p className="text-xs text-[#888] mb-1">참여 링크</p>
+                  <p className="text-xs text-[#444] mb-1">참여 링크</p>
                   <p className="font-mono text-sm text-[#d63384] break-all">/gift/{roomId}</p>
                 </div>
 
