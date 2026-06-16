@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "higgsfield": {
+      "type": "http",
+      "url": "https://mcp.higgsfield.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer hf_Ik8-RLZ0Arx3fUOJgxDcbXqriMNxBrHg8xZI4REkaWkvt_onPRVCEFb2xk3W0doU"
+      }
+    }
+  }
+}
