@@ -108,6 +108,11 @@ def parse_ym(val):
     # pandas Timestamp / datetime
     if hasattr(val, "year") and hasattr(val, "month"):
         return (val.year, val.month)
+    # Excel 날짜 일련번호 (숫자로 저장된 날짜, 예: 46082 = 2026-05-01)
+    if isinstance(val, (int, float)) and 20000 <= val <= 80000:
+        from datetime import timedelta
+        d = datetime(1899, 12, 30) + timedelta(days=float(val))
+        return (d.year, d.month)
     s = str(val).strip()
     # "2026-05-01", "2026/05/01 14:30", "2026.05.01"
     import re
@@ -181,9 +186,10 @@ def read_src_sheet(filepath, sheet_name, header_row, data_start_row):
     return headers, rows
 
 
-def filter_rows_by_month(headers, rows, date_col_names, year, month):
+def filter_rows_by_month(headers, rows, date_col_names, year, month, log=None):
     """날짜 컬럼 기준으로 대상 월 행만 반환. 총합 행 및 구분선 행 제외.
     date_col_names 중 여러 개가 발견되면 OR 조건 적용 (하나라도 해당 월이면 포함).
+    log 지정 시 매칭 실패 원인 진단 출력.
     """
     # 모든 매칭 날짜 컬럼 인덱스 수집 (OR 조건)
     date_indices = []
@@ -223,6 +229,25 @@ def filter_rows_by_month(headers, rows, date_col_names, year, month):
             if not matched:
                 continue
         result.append(row)
+
+    # 진단: 날짜 컬럼을 못 찾았거나 매칭이 극히 적으면 원인 로그
+    if log:
+        if not date_indices:
+            log(f"    [진단] 날짜 컬럼 {date_col_names} 을 헤더에서 못 찾음. 헤더: {headers[:15]}")
+        elif len(result) <= 3:
+            samples = []
+            for row in rows[:200]:
+                if is_total_row(row) or not any(v is not None for v in row):
+                    continue
+                for di in date_indices:
+                    if di < len(row) and row[di] is not None:
+                        v = row[di]
+                        samples.append(f"{v!r}({type(v).__name__}→{parse_ym(v)})")
+                        break
+                if len(samples) >= 5:
+                    break
+            log(f"    [진단] 날짜 컬럼: {[headers[i] for i in date_indices]}, "
+                f"대상: ({year},{month}), 샘플 값: {samples}")
     return result
 
 
@@ -909,7 +934,7 @@ def process_src_sheet(ws_dest, cfg, src_filepath, year, month, log):
     log(f"  [{sheet_name}] 소스 전체: {len(src_rows)}행")
 
     # 월 필터
-    filtered = filter_rows_by_month(src_headers, src_rows, cfg["date_cols"], year, month)
+    filtered = filter_rows_by_month(src_headers, src_rows, cfg["date_cols"], year, month, log=log)
     log(f"  [{sheet_name}] {year}년 {month}월 해당: {len(filtered)}행")
 
     # 총판코드 필터: require_nonempty 에 지정된 컬럼에 값이 있는 행만 허용
@@ -1038,8 +1063,27 @@ def process_세계H(ws_dest, filepaths, start_row=6, start_col="J",
 def run_automation(year, month, src_filepath, template_path, output_path,
                    file_수납내역, file_세계효, files_세계H, file_현영효,
                    log_func, done_func):
+    # 로그 파일에도 동시 기록 (GUI 글씨 깨짐/오류 확인용)
+    log_file_path = str(Path(output_path).parent / "정산_로그.txt")
+    try:
+        _logf = open(log_file_path, "w", encoding="utf-8-sig")
+    except Exception:
+        _logf = None
+
+    _orig_log = log_func
+
+    def log_func(msg):
+        _orig_log(msg)
+        if _logf:
+            try:
+                _logf.write(msg + "\n")
+                _logf.flush()
+            except Exception:
+                pass
+
     try:
         log_func("=== 정산 자동화 시작 ===")
+        log_func(f"로그 파일: {log_file_path}")
         log_func(f"정산 년월: {year}년 {month}월")
 
         # 템플릿 복사
@@ -1109,7 +1153,13 @@ def run_automation(year, month, src_filepath, template_path, output_path,
         import traceback
         log_func(f"\n❌ 오류: {e}")
         log_func(traceback.format_exc())
-        done_func(False, str(e))
+        done_func(False, f"{e}\n\n자세한 내용은 로그 파일 확인:\n{log_file_path}")
+    finally:
+        if _logf:
+            try:
+                _logf.close()
+            except Exception:
+                pass
 
 
 # ──────────────────────────────────────────────────────────────
